@@ -13,7 +13,7 @@ import {
 } from "../../shared/knowledge";
 import { CHAT_MODES, CHAT_TOPIC_TYPES } from "../../shared/ai";
 import { QUESTION_TYPES, QUIZ_KINDS } from "../../shared/learning";
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /*
  * Conventions
@@ -932,4 +932,59 @@ export const reviewLogs = sqliteTable(
     reviewedAt: createdAt(),
   },
   (t) => [index("review_logs_user_idx").on(t.userId, t.reviewedAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Stage 5: private recipe vault (end-to-end encrypted; server stores ciphertext only)
+// ---------------------------------------------------------------------------
+
+/** Key material for a user's vault. The data key (DEK) is stored only wrapped. */
+export const vaultKeys = sqliteTable("vault_keys", {
+  ownerId: text("owner_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** KDF parameters + salt (JSON, non-secret). */
+  kdf: text("kdf", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  /** DEK wrapped with the password-derived key (AES-GCM), base64. */
+  wrappedDek: text("wrapped_dek").notNull(),
+  wrappedDekIv: text("wrapped_dek_iv").notNull(),
+  /** DEK wrapped with the recovery-key-derived key, base64. */
+  recoveryWrappedDek: text("recovery_wrapped_dek").notNull(),
+  recoveryWrappedDekIv: text("recovery_wrapped_dek_iv").notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const vaultItems = sqliteTable(
+  "vault_items",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["text", "file"] }).notNull(),
+    /** Encrypted title and metadata (name, mime) — base64 ciphertext + IV. */
+    metaCiphertext: text("meta_ciphertext").notNull(),
+    metaIv: text("meta_iv").notNull(),
+    contentIv: text("content_iv").notNull(),
+    /** Ciphertext size in bytes (not secret: needed for limits). */
+    size: integer("size").notNull(),
+    chunks: integer("chunks").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("vault_items_owner_idx").on(t.ownerId, t.createdAt)],
+);
+
+/** Ciphertext split into ≤1 MiB chunks (D1 rows are limited in size). */
+export const vaultChunks = sqliteTable(
+  "vault_chunks",
+  {
+    itemId: text("item_id")
+      .notNull()
+      .references(() => vaultItems.id, { onDelete: "cascade" }),
+    idx: integer("idx").notNull(),
+    data: blob("data", { mode: "buffer" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.idx] })],
 );

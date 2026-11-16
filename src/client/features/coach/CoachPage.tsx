@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
   CHAT_MODE_HINTS,
   CHAT_MODE_LABELS,
@@ -212,9 +212,16 @@ export function ChatPage() {
     queryKey: ["ai", "session", id],
     queryFn: () => apiFetch<{ session: ChatSessionRow; messages: ChatMessageRow[] }>(`/api/ai/sessions/${id}`),
   });
+  const location = useLocation();
+  // A fragment selected in the vault arrives via navigation state (never via URL or storage).
+  const fragment = (location.state as { confidentialFragment?: string } | null)?.confidentialFragment ?? "";
   const [local, setLocal] = useState<LiveMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [confidential, setConfidential] = useState(false);
+  const [input, setInput] = useState(fragment ? `Fragment receptury z mojego sejfu:\n\n${fragment}\n\nPytanie: ` : "");
+  const [confidential, setConfidential] = useState(Boolean(fragment));
+  useEffect(() => {
+    // Drop the fragment from history state so it is not restored on back/forward.
+    if (fragment) navigate(location.pathname, { replace: true, state: null });
+  }, []);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

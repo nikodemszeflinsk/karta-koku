@@ -148,7 +148,11 @@ export const aiRoutes = new Hono<AppEnv>()
 
     const provider = getAiProvider(cfg);
     return streamSSE(c, async (stream) => {
-      const send = (e: ChatStreamEvent) => stream.writeSSE({ event: e.type, data: JSON.stringify(e) });
+      // Writes to a closed connection are ignored: the generation itself must finish and be saved
+      // even if the user navigates away (the reply is billed either way).
+      const send = (e: ChatStreamEvent): Promise<void> =>
+        stream.aborted ? Promise.resolve() : stream.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => undefined);
+      const generation = (async () => {
       try {
         const result = await provider.streamText(
           {
@@ -202,6 +206,10 @@ export const aiRoutes = new Hono<AppEnv>()
         console.error("ai_stream_error", e.code);
         await send({ type: "error", message: e.message });
       }
+      })();
+      // Keep the Worker alive until the reply is stored, even after a client disconnect.
+      c.executionCtx.waitUntil(generation);
+      await generation;
     });
   })
 

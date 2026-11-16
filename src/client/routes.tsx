@@ -19,6 +19,9 @@ import { NotesPage } from "./features/notes/NotesPage";
 import { RecipeDetailPage, RecipesPage } from "./features/recipes/RecipesPage";
 import { SearchPage } from "./features/search/SearchPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
+import { VaultProvider } from "./features/vault/vault-context";
+import { VaultItemPage } from "./features/vault/VaultItemPage";
+import { VaultPage } from "./features/vault/VaultPage";
 import { SourcesPage } from "./features/sources/SourcesPage";
 import { TechniquesPage } from "./features/techniques/TechniquesPage";
 
@@ -28,7 +31,9 @@ export const routes: RouteObject[] = [
   {
     element: (
       <RequireAuth>
-        <AppLayout />
+        <VaultProvider>
+          <AppLayout />
+        </VaultProvider>
       </RequireAuth>
     ),
     children: [
@@ -54,6 +59,8 @@ export const routes: RouteObject[] = [
       { path: "receptury", element: <RecipesPage /> },
       { path: "receptury/:id", element: <RecipeDetailPage /> },
       { path: "notatnik", element: <NotesPage /> },
+      { path: "sejf", element: <VaultPage /> },
+      { path: "sejf/:id", element: <VaultItemPage /> },
       { path: "szukaj", element: <SearchPage /> },
       { path: "zrodla", element: <SourcesPage /> },
       { path: "wiecej", element: <MorePage /> },

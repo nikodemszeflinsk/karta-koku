@@ -4,6 +4,7 @@ import { originCheck, securityHeaders } from "./middleware/security";
 import { context, loadSession } from "./middleware/session";
 import { aiRoutes } from "./modules/ai/routes";
 import { learningRoutes } from "./modules/learning/routes";
+import { vaultRoutes } from "./modules/vault/routes";
 import { academyRoutes } from "./modules/academy/routes";
 import { adminRoutes } from "./modules/admin/routes";
 import { dashboardRoutes } from "./modules/dashboard/routes";
@@ -45,6 +46,7 @@ app.route("/notes", noteRoutes);
 app.route("/search", searchRoutes);
 app.route("/ai", aiRoutes);
 app.route("/learning", learningRoutes);
+app.route("/vault", vaultRoutes);
 
 app.notFound((c) => c.json({ error: { code: "not_found", message: "Nie znaleziono." } }, 404));
 

@@ -21,6 +21,7 @@ const ICONS = {
   repeat: "M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5",
   exam: "M9 5h6M9 3h6v4H9zM6 5H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1V6a1 1 0 00-1-1h-1M8 13l2 2 4-4",
   chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  lock: "M6 11h12v10H6zM8 11V7a4 4 0 018 0v4M12 15v2",
 } as const;
 
 interface NavItem {
@@ -41,6 +42,7 @@ export const NAV: NavItem[] = [
   { to: "/techniki", label: "Techniki", icon: "flame" },
   { to: "/receptury", label: "Receptury", icon: "chef" },
   { to: "/notatnik", label: "Notatnik", icon: "note" },
+  { to: "/sejf", label: "Sejf", icon: "lock" },
   { to: "/szukaj", label: "Szukaj", icon: "search" },
   { to: "/zrodla", label: "Źródła", icon: "link" },
   { to: "/ustawienia", label: "Ustawienia", icon: "gear" },
