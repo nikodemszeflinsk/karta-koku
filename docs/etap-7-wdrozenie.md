@@ -42,3 +42,4 @@ D1 ma wbudowane przywracanie do punktu w czasie (Time Travel). Eksport ręczny: 
 - Worker `sushi-chef-lab` pod `https://sushi-chef-lab.nikodemszeflinsk.workers.dev`; sekrety `BETTER_AUTH_SECRET` i `SETUP_TOKEN` ustawione; `ANTHROPIC_API_KEY` — brak (trener AI wyłączony).
 - Publikacja: **Cloudflare Workers Builds** połączone z repozytorium `karta-koku`, gałąź `claude/festive-wright-usele0`; build: `npx vite build`, deploy: `npx wrangler deploy`, `NODE_VERSION=22`. Każdy push na tę gałąź publikuje nową wersję.
 - Uwaga: bezpośredni `wrangler deploy` z sesji Claude Code w chmurze nie działa (proxy podmienia token wysyłki plików) — publikacja idzie przez Workers Builds.
+- GitHub: aplikacja „Cloudflare Workers and Pages” musi mieć dostęp do repozytorium `karta-koku` (github.com/settings/installations) — bez tego Cloudflare pokazuje „disconnected from your Git account” i nie buduje.
