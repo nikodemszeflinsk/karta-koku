@@ -5,6 +5,7 @@ import { context, loadSession } from "./middleware/session";
 import { aiRoutes } from "./modules/ai/routes";
 import { learningRoutes } from "./modules/learning/routes";
 import { vaultRoutes } from "./modules/vault/routes";
+import { invitePublicRoutes, teamRoutes } from "./modules/team/routes";
 import { academyRoutes } from "./modules/academy/routes";
 import { adminRoutes } from "./modules/admin/routes";
 import { dashboardRoutes } from "./modules/dashboard/routes";
@@ -32,6 +33,8 @@ app.on(["GET", "POST"], "/auth/*", (c) => c.var.auth.handler(c.req.raw));
 
 app.use("*", loadSession);
 app.route("/setup", setupRoutes);
+// Invitation acceptance works without a session (the invitee has no account yet).
+app.route("/invitations", invitePublicRoutes);
 app.route("/me", meRoutes);
 app.route("/academy", academyRoutes);
 app.route("/dashboard", dashboardRoutes);
@@ -47,6 +50,7 @@ app.route("/search", searchRoutes);
 app.route("/ai", aiRoutes);
 app.route("/learning", learningRoutes);
 app.route("/vault", vaultRoutes);
+app.route("/team", teamRoutes);
 
 app.notFound((c) => c.json({ error: { code: "not_found", message: "Nie znaleziono." } }, 404));
 

@@ -22,12 +22,21 @@ const ICONS = {
   exam: "M9 5h6M9 3h6v4H9zM6 5H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1V6a1 1 0 00-1-1h-1M8 13l2 2 4-4",
   chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
   lock: "M6 11h12v10H6zM8 11V7a4 4 0 018 0v4M12 15v2",
+  users: "M16 19v-1a4 4 0 00-4-4H6a4 4 0 00-4 4v1M9 10a3 3 0 100-6 3 3 0 000 6zM22 19v-1a4 4 0 00-3-3.9M16 4.1a3 3 0 010 5.8",
 } as const;
 
 interface NavItem {
   to: string;
   label: string;
   icon: keyof typeof ICONS;
+  /** Only for owner / admin / trainer. */
+  staff?: boolean;
+}
+
+function useNav(): NavItem[] {
+  const me = useMe();
+  const staff = Boolean(me.data?.roles.some((r) => r.role === "owner" || r.role === "admin" || r.role === "trainer"));
+  return NAV.filter((n) => !n.staff || staff);
 }
 
 export const NAV: NavItem[] = [
@@ -45,6 +54,7 @@ export const NAV: NavItem[] = [
   { to: "/sejf", label: "Sejf", icon: "lock" },
   { to: "/szukaj", label: "Szukaj", icon: "search" },
   { to: "/zrodla", label: "Źródła", icon: "link" },
+  { to: "/zespol", label: "Zespół", icon: "users", staff: true },
   { to: "/ustawienia", label: "Ustawienia", icon: "gear" },
 ];
 
@@ -94,6 +104,7 @@ export function AppLayout() {
   const me = useMe();
   const role = me.data ? highestRole(me.data.roles.map((r) => r.role)) : null;
   const location = useLocation();
+  const nav = useNav();
   const inMore = !MOBILE_NAV.some((n) => n.to !== "/wiecej" && (n.to === "/" ? location.pathname === "/" : location.pathname.startsWith(n.to)));
 
   return (
@@ -108,7 +119,7 @@ export function AppLayout() {
           Sushi Chef Lab
         </Link>
         <nav aria-label="Główna nawigacja" className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -154,7 +165,7 @@ export function AppLayout() {
 }
 
 export function MorePage() {
-  const extra = NAV.filter((n) => !MOBILE_NAV.some((m) => m.to === n.to));
+  const extra = useNav().filter((n) => !MOBILE_NAV.some((m) => m.to === n.to));
   return (
     <>
       <PageHeader title="Więcej" />
