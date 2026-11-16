@@ -18,6 +18,9 @@ const ICONS = {
   gear: "M12 15a3 3 0 100-6 3 3 0 000 6zm7.4-3a7.4 7.4 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-2-1.2L14.5 2h-5l-.4 2.6a7.6 7.6 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 000 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 002 1.2l.4 2.6h5l.4-2.6a7.6 7.6 0 002-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z",
   dots: "M5 12h.01M12 12h.01M19 12h.01",
   chat: "M21 12a8 8 0 01-11.6 7.1L4 20l1.1-4.6A8 8 0 1121 12zM8 10h8M8 14h5",
+  repeat: "M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5",
+  exam: "M9 5h6M9 3h6v4H9zM6 5H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1V6a1 1 0 00-1-1h-1M8 13l2 2 4-4",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
 } as const;
 
 interface NavItem {
@@ -30,6 +33,9 @@ export const NAV: NavItem[] = [
   { to: "/", label: "Pulpit", icon: "home" },
   { to: "/trener", label: "Trener AI", icon: "chat" },
   { to: "/akademia", label: "Akademia", icon: "book" },
+  { to: "/powtorki", label: "Powtórki", icon: "repeat" },
+  { to: "/egzaminy", label: "Egzaminy", icon: "exam" },
+  { to: "/postepy", label: "Postępy", icon: "chart" },
   { to: "/skladniki", label: "Składniki", icon: "flask" },
   { to: "/karta", label: "Karta KOKU", icon: "menu" },
   { to: "/techniki", label: "Techniki", icon: "flame" },
@@ -42,9 +48,9 @@ export const NAV: NavItem[] = [
 
 const MOBILE_NAV: NavItem[] = [
   { to: "/", label: "Pulpit", icon: "home" },
+  { to: "/akademia", label: "Akademia", icon: "book" },
   { to: "/trener", label: "Trener", icon: "chat" },
-  { to: "/skladniki", label: "Składniki", icon: "flask" },
-  { to: "/karta", label: "Karta", icon: "menu" },
+  { to: "/powtorki", label: "Powtórki", icon: "repeat" },
   { to: "/wiecej", label: "Więcej", icon: "dots" },
 ];
 

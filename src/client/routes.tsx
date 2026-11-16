@@ -1,5 +1,9 @@
 import type { RouteObject } from "react-router";
 import { AcademyPage } from "./features/academy/AcademyPage";
+import { LessonNewPage, LessonPage } from "./features/academy/LessonPage";
+import { AttemptPage, ExamsPage } from "./features/learning/ExamsPage";
+import { ProgressPage } from "./features/learning/ProgressPage";
+import { ReviewsPage } from "./features/learning/ReviewsPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { SetupPage } from "./features/auth/SetupPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
@@ -30,6 +34,12 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "akademia", element: <AcademyPage /> },
+      { path: "akademia/lekcja/nowa", element: <LessonNewPage /> },
+      { path: "akademia/lekcja/:id", element: <LessonPage /> },
+      { path: "egzaminy", element: <ExamsPage /> },
+      { path: "egzaminy/:id", element: <AttemptPage /> },
+      { path: "powtorki", element: <ReviewsPage /> },
+      { path: "postepy", element: <ProgressPage /> },
       { path: "trener", element: <CoachPage /> },
       { path: "trener/ocena", element: <EvaluatePage /> },
       { path: "trener/:id", element: <ChatPage /> },

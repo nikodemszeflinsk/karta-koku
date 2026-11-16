@@ -69,7 +69,7 @@ export interface DashboardResponse {
   targetLevel: Level | null;
   categories: (Category & { materialCount: number })[];
   openNotes: number;
-  recentMistakes: { id: string; question: string; verdict: string; correctness: number; reasoningQuality: number; createdAt: string }[];
+  recentMistakes: { id: string; question: string; correctness: number; reasoningQuality: number | null; createdAt: string }[];
   ai: { enabled: boolean; reason: string | null };
 }
 

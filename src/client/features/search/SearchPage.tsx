@@ -12,6 +12,8 @@ const TYPE_LABELS: Record<SearchType, string> = {
   recipe: "Receptura",
   note: "Notatka",
   source: "Źródło",
+  lesson: "Lekcja",
+  question: "Pytanie",
 };
 
 function hrefFor(h: SearchHit): string {
@@ -28,6 +30,10 @@ function hrefFor(h: SearchHit): string {
       return `/notatnik`;
     case "source":
       return `/zrodla`;
+    case "lesson":
+      return `/akademia/lekcja/${h.id}`;
+    case "question":
+      return `/egzaminy`;
   }
 }
 

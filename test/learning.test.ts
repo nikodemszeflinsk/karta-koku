@@ -257,3 +257,13 @@ describe("next lesson", () => {
     expect(next.recommended).not.toBeNull();
   });
 });
+
+describe("search does not leak answers", () => {
+  it("indexes question prompts but not model answers", async () => {
+    const cookie = await loginCookie("o4@example.test", "other password 1234");
+    const hits = (await (await api("/api/search?q=rozgalęziona", { cookie })).json()) as { results: { type: string }[] };
+    expect(hits.results.filter((h) => h.type === "question")).toHaveLength(0);
+    const byPrompt = (await (await api("/api/search?q=kleistosc", { cookie })).json()) as { results: { type: string }[] };
+    expect(byPrompt.results.some((h) => h.type === "question")).toBe(true);
+  });
+});

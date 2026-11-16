@@ -1,43 +1,90 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
+import type { NextLessons } from "../../../shared/learning";
 import { Alert, Card, EmptyState, PageHeader, Spinner } from "../../components/ui";
+import { apiFetch } from "../../lib/api";
 import { useDashboard } from "../../lib/queries";
+import { Bar, useProgress } from "../learning/ProgressPage";
 
 const linkClass = "font-semibold text-accent underline-offset-2 hover:underline";
 
 export function DashboardPage() {
   const dash = useDashboard();
+  const progress = useProgress();
+  const next = useQuery({ queryKey: ["next"], queryFn: () => apiFetch<NextLessons>("/api/learning/next") });
 
   if (dash.isPending) return <Spinner label="Ładowanie pulpitu…" />;
   if (dash.isError) return <Alert tone="error">Nie udało się wczytać pulpitu: {dash.error.message}</Alert>;
 
   const d = dash.data;
   const today = new Intl.DateTimeFormat("pl-PL", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Warsaw" }).format(new Date());
+  const level = d.targetLevel ? progress.data?.levels.find((l) => l.key === d.targetLevel!.key) : undefined;
+  const due = progress.data?.stats.dueReviews ?? 0;
 
   return (
     <>
       <PageHeader title={`Cześć, ${d.greetingName}`} subtitle={today} />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Cel rozwoju" className="lg:col-span-2">
+        <Card title="Kontynuuj naukę" className="lg:col-span-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {next.data?.last ? (
+              <Link to={`/akademia/lekcja/${next.data.last.id}`} className="rounded-lg border border-border p-3 hover:bg-surface-2">
+                <p className="text-xs text-muted">Ostatnia lekcja · {next.data.last.moduleTitle}</p>
+                <p className="font-medium">{next.data.last.title}</p>
+                {next.data.last.completed && <p className="text-xs text-ok">✓ ukończona</p>}
+              </Link>
+            ) : (
+              <EmptyState title="Ostatnia lekcja">Nie otwarto jeszcze żadnej lekcji.</EmptyState>
+            )}
+            {next.data?.recommended ? (
+              <Link to={`/akademia/lekcja/${next.data.recommended.id}`} className="rounded-lg border border-accent/40 bg-accent-soft p-3 hover:opacity-90">
+                <p className="text-xs text-accent">Polecana następna</p>
+                <p className="font-medium">{next.data.recommended.title}</p>
+                <p className="text-xs text-muted">{next.data.recommended.reason}</p>
+              </Link>
+            ) : (
+              <EmptyState title="Polecana lekcja">
+                Brak nieukończonych lekcji.{" "}
+                <Link to="/akademia" className={linkClass}>
+                  Akademia
+                </Link>
+              </EmptyState>
+            )}
+          </div>
+        </Card>
+
+        <div className="grid gap-4">
+          <Card title="Dzisiejsza powtórka" action={<Link to="/powtorki" className={`text-sm ${linkClass}`}>Zacznij</Link>}>
+            <p className="text-2xl font-bold tabular-nums">{due}</p>
+            <p className="text-xs text-muted">{due === 0 ? "Brak zaległych pytań." : "pytań do powtórki"}</p>
+          </Card>
+          <Card title="Trener AI" action={<Link to="/trener" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
+            <p className="text-sm text-muted">{d.ai.enabled ? "Rozmowa, lekcja, egzamin ustny lub symulacja problemu." : d.ai.reason}</p>
+          </Card>
+        </div>
+
+        <Card title="Cel rozwoju" className="lg:col-span-2" action={<Link to="/postepy" className={`text-sm ${linkClass}`}>Postępy</Link>}>
           {d.targetLevel ? (
             <>
               <p className="text-sm text-muted">
                 Poziom docelowy: <span className="font-semibold text-fg">{d.targetLevel.name}</span>
+                {level && (level.achieved ? <span className="ml-2 text-ok">✓ zaliczony</span> : level.examPassed ? " · egzamin zdany" : "")}
               </p>
-              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                {d.targetLevel.competencies.map((c) => (
-                  <li key={c.key} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm">
-                    <span>{c.name}</span>
-                    <span className="shrink-0 text-xs text-muted" title="Opanowanie pojawi się po pierwszych odpowiedziach w egzaminach">
-                      brak danych
-                    </span>
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+                {(level?.competencies ?? d.targetLevel.competencies.map((c) => ({ ...c, score: null, evidenceCount: 0, met: false }))).map((c) => (
+                  <li key={c.key}>
+                    <div className="mb-1 flex justify-between gap-2 text-sm">
+                      <span>
+                        {c.met && <span className="mr-1 text-ok">✓</span>}
+                        {c.name}
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted">{c.score === null ? "brak danych" : `${c.score} · ${c.evidenceCount} odp.`}</span>
+                    </div>
+                    <Bar value={c.score} threshold={d.targetLevel!.masteryThreshold} label={`${c.name}: opanowanie`} />
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-muted">
-                Próg zaliczenia: {d.targetLevel.masteryThreshold}% w każdej kompetencji, min. {d.targetLevel.minEvidence} ocenionych
-                odpowiedzi na kompetencję.
-              </p>
             </>
           ) : (
             <EmptyState title="Nie wybrano poziomu docelowego">
@@ -49,51 +96,43 @@ export function DashboardPage() {
         </Card>
 
         <div className="grid gap-4">
-          <Card title="Trener AI" action={<Link to="/trener" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
-            <p className="text-sm text-muted">{d.ai.enabled ? "Rozmowa, lekcja, egzamin ustny lub symulacja problemu." : d.ai.reason}</p>
+          <Card title="Ostatnie błędy">
+            {d.recentMistakes.length === 0 ? (
+              <p className="text-sm text-muted">Brak ocenionych błędnych odpowiedzi.</p>
+            ) : (
+              <ul className="grid gap-2">
+                {d.recentMistakes.map((m) => (
+                  <li key={m.id} className="text-sm">
+                    <span>{m.question.length > 90 ? `${m.question.slice(0, 90)}…` : m.question}</span>
+                    <span className="block text-xs text-muted">
+                      poprawność {m.correctness} · uzasadnienie {m.reasoningQuality ?? "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
           <Card title="Notatnik" action={<Link to="/notatnik" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
-            <p className="text-sm text-muted">
-              {d.openNotes === 0 ? "Brak otwartych pytań." : `Otwarte pytania do wyjaśnienia: ${d.openNotes}`}
-            </p>
+            <p className="text-sm text-muted">{d.openNotes === 0 ? "Brak otwartych pytań." : `Otwarte pytania do wyjaśnienia: ${d.openNotes}`}</p>
           </Card>
         </div>
 
-        <Card title="Nauka i powtórki" className="lg:col-span-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <EmptyState title="Ostatnia lekcja">Brak rozpoczętych lekcji.</EmptyState>
-            <EmptyState title="Dzisiejsza powtórka">Brak zaplanowanych powtórek.</EmptyState>
-            {d.recentMistakes.length === 0 ? (
-              <EmptyState title="Ostatnie błędy">Brak błędnych odpowiedzi.</EmptyState>
-            ) : (
-              <div className="rounded-lg border border-border px-3 py-3">
-                <p className="text-sm font-medium">Ostatnie błędy</p>
-                <ul className="mt-2 grid gap-2">
-                  {d.recentMistakes.map((m) => (
-                    <li key={m.id} className="text-sm">
-                      <Link to="/trener/ocena" className="hover:text-accent">
-                        {m.question.length > 90 ? `${m.question.slice(0, 90)}…` : m.question}
-                      </Link>
-                      <span className="block text-xs text-muted">
-                        poprawność {m.correctness} · uzasadnienie {m.reasoningQuality}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          <p className="mt-3 text-xs text-muted">Lekcje, egzaminy i powtórki pojawią się w Etapie 4. Błędy pochodzą z ocen trenera AI.</p>
-        </Card>
-
-        <Card title="Kategorie Akademii" className="lg:col-span-3" action={<Link to="/akademia" className={`text-sm ${linkClass}`}>Wszystkie</Link>}>
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {d.categories.map((c) => (
-              <li key={c.slug} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                <span>{c.name}</span>
-                <span className="text-xs text-muted">{c.materialCount} {c.materialCount === 1 ? "wpis" : "wpisów"}</span>
-              </li>
-            ))}
+        <Card title="Postęp w kategoriach" className="lg:col-span-3" action={<Link to="/akademia" className={`text-sm ${linkClass}`}>Akademia</Link>}>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {d.categories.map((c) => {
+              const p = progress.data?.categories.find((x) => x.slug === c.slug);
+              return (
+                <li key={c.slug}>
+                  <div className="mb-1 flex justify-between gap-2 text-sm">
+                    <span>{c.name}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted">
+                      {p?.avgEvidence ?? "—"} · {c.materialCount} wpis.
+                    </span>
+                  </div>
+                  <Bar value={p?.avgEvidence ?? null} label={`${c.name}: średnie zrozumienie`} />
+                </li>
+              );
+            })}
           </ul>
         </Card>
       </div>

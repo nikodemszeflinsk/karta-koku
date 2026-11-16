@@ -171,7 +171,8 @@ export function questionWrites(db: Db, id: string, q: z.infer<typeof questionInp
       db.insert(questionOptions).values({ id: crypto.randomUUID(), questionId: id, text: o.text, isCorrect: o.isCorrect, matchTarget: o.matchTarget ?? null, sortOrder: i }),
     ),
     ...compIds.map((cid) => db.insert(questionCompetencies).values({ questionId: id, competencyId: cid })),
-    ...indexStatements(db, { type: "question", id, ownerId: null, title: q.prompt.slice(0, 160), body: q.explanation }),
+    // Prompt only: the model answer must not leak through search snippets.
+    ...indexStatements(db, { type: "question", id, ownerId: null, title: q.prompt.slice(0, 160), body: q.prompt }),
   ];
 }
 
