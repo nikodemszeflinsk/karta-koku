@@ -11,7 +11,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "cf-typegen": "wrangler types --strict-vars=false src/worker/worker-configuration.d.ts"
+    "cf-typegen": "wrangler types --strict-vars=false src/worker/worker-configuration.d.ts",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "npm run typecheck && npm test && vite build && wrangler deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
