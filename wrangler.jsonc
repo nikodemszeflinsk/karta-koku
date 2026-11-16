@@ -13,14 +13,14 @@
     {
       "binding": "DB",
       "database_name": "sushi-chef-lab",
-      // Placeholder for local development. The real ID is set only after the
-      // owner creates the database in Cloudflare (Stage 7).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Production D1 (region WEUR). Local dev/tests use a local copy (Miniflare).
+      "database_id": "d09aebcf-b03a-4a5b-a2b5-cbd5e9a0abae",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
-    "APP_URL": "http://localhost:5173",
+    // Production address. Local dev overrides it in .dev.vars (APP_URL=http://localhost:5173).
+    "APP_URL": "https://sushi-chef-lab.nikodemszeflinsk.workers.dev",
     // AI coach. The API key is a secret (wrangler secret put ANTHROPIC_API_KEY); without it AI stays off.
     "AI_ENABLED": "true",
     "AI_MODEL": "claude-sonnet-5-5",
