@@ -323,4 +323,4 @@ Po akceptacji (z ewentualnymi zmianami) rozpoczynam **Etap 1** lokalnie, bez zak
 | 4 | Treść: szkice AI jako `needs_verification`, akceptuje właściciel | zgodnie z sekcją 5.5 |
 | 5 | Karta KOKU z oficjalnej strony | Strona kokusushi.pl **nie publikuje karty w PDF** — menu jest w zamówieniach online per lokal (forgastro) i w linku „Menu sezonowe”. Import po wskazaniu lokalu. Pozycje pobrane z oficjalnych stron dostają źródło typu `web` z adresem i datą pobrania oraz status `needs_verification`; `confirmed` dopiero po akceptacji właściciela. Brakujące składniki pozostają puste. |
 | 6 | Sejf „ma być po prostu bezpieczny” | Argon2id + AES-GCM-256 zgodnie z sekcją 9; przy zakładaniu sejfu generowany jednorazowo **klucz odzyskiwania** do zapisania |
-| 7 | Offline — brak odpowiedzi | domyślnie: aplikacja instalowalna, bez offline dla danych prywatnych; do zmiany później |
+| 7 | Offline — **na razie nie** | aplikacja instalowalna (PWA), wymaga internetu; service worker cache’uje tylko powłokę aplikacji; do ponownej decyzji później |
