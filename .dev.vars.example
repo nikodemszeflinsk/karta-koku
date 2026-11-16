@@ -3,3 +3,5 @@
 BETTER_AUTH_SECRET=
 # One-time token required to create the owner account on /setup
 SETUP_TOKEN=
+# Anthropic API key for the AI coach (optional; AI is off without it). Never commit it.
+ANTHROPIC_API_KEY=

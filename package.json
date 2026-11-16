@@ -14,6 +14,7 @@
     "cf-typegen": "wrangler types --strict-vars=false src/worker/worker-configuration.d.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
     "@better-auth/passkey": "1.7.25",
     "@hono/zod-validator": "0.9.1",
     "@tanstack/react-query": "5.107.1",

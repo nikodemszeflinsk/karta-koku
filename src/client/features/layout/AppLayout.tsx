@@ -17,6 +17,7 @@ const ICONS = {
   link: "M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1",
   gear: "M12 15a3 3 0 100-6 3 3 0 000 6zm7.4-3a7.4 7.4 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-2-1.2L14.5 2h-5l-.4 2.6a7.6 7.6 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 000 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 002 1.2l.4 2.6h5l.4-2.6a7.6 7.6 0 002-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z",
   dots: "M5 12h.01M12 12h.01M19 12h.01",
+  chat: "M21 12a8 8 0 01-11.6 7.1L4 20l1.1-4.6A8 8 0 1121 12zM8 10h8M8 14h5",
 } as const;
 
 interface NavItem {
@@ -27,6 +28,7 @@ interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: "/", label: "Pulpit", icon: "home" },
+  { to: "/trener", label: "Trener AI", icon: "chat" },
   { to: "/akademia", label: "Akademia", icon: "book" },
   { to: "/skladniki", label: "Składniki", icon: "flask" },
   { to: "/karta", label: "Karta KOKU", icon: "menu" },
@@ -40,9 +42,9 @@ export const NAV: NavItem[] = [
 
 const MOBILE_NAV: NavItem[] = [
   { to: "/", label: "Pulpit", icon: "home" },
+  { to: "/trener", label: "Trener", icon: "chat" },
   { to: "/skladniki", label: "Składniki", icon: "flask" },
   { to: "/karta", label: "Karta", icon: "menu" },
-  { to: "/notatnik", label: "Notatnik", icon: "note" },
   { to: "/wiecej", label: "Więcej", icon: "dots" },
 ];
 

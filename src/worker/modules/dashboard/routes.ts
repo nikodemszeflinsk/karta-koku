@@ -1,15 +1,16 @@
-import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
-import { notes } from "../../db/schema";
+import { answerEvaluations, notes } from "../../db/schema";
 import type { DashboardResponse } from "../../../shared/schemas";
+import { aiConfig } from "../../ai/config";
 import { requireAuth } from "../../middleware/session";
 import type { AppEnv } from "../../types";
 import { listCategories, listLevels } from "../academy/repo";
 import { getProfile } from "../me/routes";
 
 export function aiStatus(env: Env): DashboardResponse["ai"] {
-  if (env.AI_ENABLED !== "true") return { enabled: false, reason: "Trener AI jest wyłączony w konfiguracji." };
-  return { enabled: false, reason: "Trener AI zostanie uruchomiony w Etapie 3." };
+  const cfg = aiConfig(env);
+  return { enabled: cfg.enabled, reason: cfg.disabledReason };
 }
 
 export const dashboardRoutes = new Hono<AppEnv>().use(requireAuth).get("/", async (c) => {
@@ -28,11 +29,25 @@ export const dashboardRoutes = new Hono<AppEnv>().use(requireAuth).get("/", asyn
   const bySlug = new Map(counts.map((r) => [r.slug, r.n]));
   const [open] = await db.select({ n: count() }).from(notes).where(and(eq(notes.ownerId, user.id), isNull(notes.resolvedAt)));
   const menuCount = await db.get<{ n: number }>(sql`SELECT count(*) AS n FROM menu_items`);
+  const mistakes = await db
+    .select({
+      id: answerEvaluations.id,
+      question: answerEvaluations.question,
+      verdict: answerEvaluations.verdict,
+      correctness: answerEvaluations.correctness,
+      reasoningQuality: answerEvaluations.reasoningQuality,
+      createdAt: answerEvaluations.createdAt,
+    })
+    .from(answerEvaluations)
+    .where(and(eq(answerEvaluations.userId, user.id), ne(answerEvaluations.verdict, "correct")))
+    .orderBy(desc(answerEvaluations.createdAt))
+    .limit(3);
   const body: DashboardResponse = {
     greetingName: profile.displayName ?? user.name,
     targetLevel: levels.find((l) => l.key === profile.targetLevelKey) ?? null,
     categories: categories.map((c) => ({ ...c, materialCount: (bySlug.get(c.slug) ?? 0) + (c.slug === "karta-koku" ? (menuCount?.n ?? 0) : 0) })),
     openNotes: open?.n ?? 0,
+    recentMistakes: mistakes.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() })),
     ai: aiStatus(c.env),
   };
   return c.json(body);

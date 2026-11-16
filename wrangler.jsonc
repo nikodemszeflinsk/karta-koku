@@ -21,8 +21,17 @@
   ],
   "vars": {
     "APP_URL": "http://localhost:5173",
-    "AI_ENABLED": "false",
+    // AI coach. The API key is a secret (wrangler secret put ANTHROPIC_API_KEY); without it AI stays off.
+    "AI_ENABLED": "true",
     "AI_MODEL": "claude-sonnet-5-5",
-    "AI_MODEL_LIGHT": "claude-haiku-5-5"
+    "AI_MODEL_LIGHT": "claude-haiku-5-5",
+    "AI_EFFORT": "low",
+    "AI_MAX_OUTPUT_TOKENS": "3000",
+    "AI_MAX_CONTEXT_CHARS": "24000",
+    "AI_RATE_PER_MINUTE": "6",
+    "AI_DAILY_BUDGET_USD": "0.50",
+    "AI_MONTHLY_BUDGET_USD": "5.00",
+    // Empty = official Anthropic API. Only for local testing against a mock server.
+    "AI_BASE_URL": ""
   }
 }

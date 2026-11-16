@@ -54,7 +54,7 @@ async function getIngredient(db: Db, id: string) {
 }
 
 /** Rebuilds the search entry from the current DB state. */
-async function reindexIngredient(db: Db, id: string) {
+export async function reindexIngredient(db: Db, id: string) {
   const [row] = await db.select().from(ingredients).where(eq(ingredients.id, id));
   if (!row) return;
   const props = await db.select({ content: ingredientProperties.content }).from(ingredientProperties).where(eq(ingredientProperties.ingredientId, id));

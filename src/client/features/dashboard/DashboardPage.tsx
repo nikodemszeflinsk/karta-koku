@@ -49,8 +49,8 @@ export function DashboardPage() {
         </Card>
 
         <div className="grid gap-4">
-          <Card title="Trener AI">
-            <p className="text-sm text-muted">{d.ai.reason ?? "Trener jest dostępny."}</p>
+          <Card title="Trener AI" action={<Link to="/trener" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
+            <p className="text-sm text-muted">{d.ai.enabled ? "Rozmowa, lekcja, egzamin ustny lub symulacja problemu." : d.ai.reason}</p>
           </Card>
           <Card title="Notatnik" action={<Link to="/notatnik" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
             <p className="text-sm text-muted">
@@ -63,9 +63,27 @@ export function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <EmptyState title="Ostatnia lekcja">Brak rozpoczętych lekcji.</EmptyState>
             <EmptyState title="Dzisiejsza powtórka">Brak zaplanowanych powtórek.</EmptyState>
-            <EmptyState title="Ostatnie błędy">Brak ocenionych odpowiedzi.</EmptyState>
+            {d.recentMistakes.length === 0 ? (
+              <EmptyState title="Ostatnie błędy">Brak błędnych odpowiedzi.</EmptyState>
+            ) : (
+              <div className="rounded-lg border border-border px-3 py-3">
+                <p className="text-sm font-medium">Ostatnie błędy</p>
+                <ul className="mt-2 grid gap-2">
+                  {d.recentMistakes.map((m) => (
+                    <li key={m.id} className="text-sm">
+                      <Link to="/trener/ocena" className="hover:text-accent">
+                        {m.question.length > 90 ? `${m.question.slice(0, 90)}…` : m.question}
+                      </Link>
+                      <span className="block text-xs text-muted">
+                        poprawność {m.correctness} · uzasadnienie {m.reasoningQuality}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-          <p className="mt-3 text-xs text-muted">Lekcje, egzaminy i powtórki pojawią się w Etapie 4.</p>
+          <p className="mt-3 text-xs text-muted">Lekcje, egzaminy i powtórki pojawią się w Etapie 4. Błędy pochodzą z ocen trenera AI.</p>
         </Card>
 
         <Card title="Kategorie Akademii" className="lg:col-span-3" action={<Link to="/akademia" className={`text-sm ${linkClass}`}>Wszystkie</Link>}>

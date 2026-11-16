@@ -4,7 +4,7 @@ Prywatna, polskojęzyczna akademia kulinarna dla kucharza sushi: od kucharza zaa
 
 Stack: React + Vite + Tailwind (SPA) · Cloudflare Workers + Hono (API) · D1 + Drizzle · Better Auth (hasło + passkey) · Zod · Vitest (testy w środowisku Workers).
 
-Plan i decyzje: [`docs/etap-0-plan.md`](docs/etap-0-plan.md). Raporty: [etap 1](docs/etap-1-raport.md), [etap 2](docs/etap-2-raport.md).
+Plan i decyzje: [`docs/etap-0-plan.md`](docs/etap-0-plan.md). Raporty: [etap 1](docs/etap-1-raport.md), [etap 2](docs/etap-2-raport.md), [etap 3](docs/etap-3-raport.md).
 
 ## Uruchomienie lokalne
 
@@ -18,6 +18,8 @@ cp .dev.vars.example .dev.vars        # potem wpisz wartości:
 npm run db:migrate:local              # tworzy lokalną bazę D1 i dane referencyjne
 npm run dev                           # http://localhost:5173
 ```
+
+Trener AI (opcjonalnie): dopisz do `.dev.vars` swój klucz `ANTHROPIC_API_KEY=...`. Bez klucza trener jest wyłączony, a reszta aplikacji działa. Limity kosztów ustawiasz w `wrangler.jsonc` (`AI_DAILY_BUDGET_USD`, `AI_MONTHLY_BUDGET_USD`).
 
 Pierwsze uruchomienie: wejdź na `http://localhost:5173/setup`, podaj `SETUP_TOKEN` z `.dev.vars` i utwórz konto właściciela. Działa tylko raz, gdy baza nie ma żadnego użytkownika. Potem w **Ustawieniach** możesz dodać klucz dostępu (passkey).
 

@@ -135,10 +135,11 @@ describe("owner setup, sign-in and RBAC", () => {
 
     const dash = (await (await api("/api/dashboard", { cookie: ownerCookie })).json()) as DashboardResponse;
     expect(dash.targetLevel?.key).toBe("sous_chef");
-    expect(dash.ai.enabled).toBe(false);
+    expect(dash.ai.enabled).toBe(true); // test binding provides a (fake) key
     expect(dash.categories).toHaveLength(17);
     expect(dash.categories.find((c) => c.slug === "karta-koku")?.materialCount).toBe(37);
     expect(dash.openNotes).toBe(0);
+    expect(dash.recentMistakes).toEqual([]);
   });
 
   it("lets the owner read users and the audit log", async () => {

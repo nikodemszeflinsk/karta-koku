@@ -17,6 +17,7 @@ import {
 } from "../../../shared/knowledge";
 import { formatDate, Prose, Provenance, StatusSourceFields, Textarea, useCanEdit, useSources } from "../../components/knowledge";
 import { Alert, Button, Card, EmptyState, Field, Input, Select, Spinner } from "../../components/ui";
+import { useAiStatus } from "../../lib/ai";
 import { apiFetch } from "../../lib/api";
 import { useApiMutation } from "../../lib/use-api-mutation";
 import { LinkedNotes } from "../notes/LinkedNotes";
@@ -79,6 +80,30 @@ function PropertyEditor({
   );
 }
 
+function AiDraftButton({ d }: { d: IngredientDetail }) {
+  const status = useAiStatus();
+  const draft = useApiMutation<void, { added: number }>(() => ({ path: "/api/ai/drafts/ingredient", body: { ingredientId: d.id } }), [["ingredient", d.id], ["sources"], ["ai", "status"]]);
+  if (!status.data?.enabled) return null;
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <Button
+        variant="secondary"
+        loading={draft.isPending}
+        onClick={() => {
+          const ok = confirm(
+            `Trener AI przygotuje szkic właściwości składnika „${d.namePl}”.\n\nDo AI zostanie wysłana tylko nazwa składnika${d.nameOriginal ? " i nazwa oryginalna" : ""} oraz kategoria. Wpisy dostaną status „Do weryfikacji” i źródło „Szkic AI”.`,
+          );
+          if (ok) void draft.submit(undefined);
+        }}
+      >
+        Szkic AI
+      </Button>
+      {draft.isError && <span className="text-xs text-danger">{draft.error.message}</span>}
+      {draft.data && <span className="text-xs text-ok">Dodano {draft.data.added} wpisów do weryfikacji</span>}
+    </span>
+  );
+}
+
 function PropertiesSection({ d, canEdit }: { d: IngredientDetail; canEdit: boolean }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const del = useApiMutation<string>((pid) => ({ path: `/api/ingredients/${d.id}/properties/${pid}`, method: "DELETE" }), [["ingredient", d.id]]);
@@ -89,9 +114,12 @@ function PropertiesSection({ d, canEdit }: { d: IngredientDetail; canEdit: boole
       title="Właściwości i zachowanie"
       action={
         canEdit && editing !== "new" ? (
-          <Button variant="secondary" onClick={() => setEditing("new")}>
-            Dodaj
-          </Button>
+          <span className="flex items-start gap-2">
+            <AiDraftButton d={d} />
+            <Button variant="secondary" onClick={() => setEditing("new")}>
+              Dodaj
+            </Button>
+          </span>
         ) : undefined
       }
     >

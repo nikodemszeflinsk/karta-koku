@@ -8,6 +8,7 @@ import { ApiRequestError, apiFetch } from "../../lib/api";
 import { authClient, authErrorMessage } from "../../lib/auth-client";
 import { qk, useLevels, useMe } from "../../lib/queries";
 import { applyTheme } from "../../lib/theme";
+import { useAiStatus } from "../../lib/ai";
 
 const THEME_LABELS: Record<Theme, string> = { system: "Systemowy", light: "Jasny", dark: "Ciemny" };
 
@@ -86,7 +87,9 @@ function ThemeCard({ me }: { me: MeResponse }) {
   const update = useUpdateProfile();
   const [theme, setTheme] = useState<Theme>(me.profile.theme);
 
-  useEffect(() => applyTheme(theme), [theme]);
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   return (
     <Card title="Wygląd">
@@ -235,6 +238,33 @@ function AccountCard({ me }: { me: MeResponse }) {
   );
 }
 
+function AiCard() {
+  const s = useAiStatus();
+  if (!s.data) return null;
+  const u = s.data.usage;
+  return (
+    <Card title="Trener AI">
+      {s.data.enabled ? (
+        <dl className="grid gap-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-muted">Model</dt>
+            <dd className="font-medium">{s.data.model} (proste zadania: {s.data.modelLight})</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Koszt (szacunek)</dt>
+            <dd className="font-medium">
+              dziś {u.todayUsd.toFixed(3)} / {u.dailyLimitUsd.toFixed(2)} USD · miesiąc {u.monthUsd.toFixed(2)} / {u.monthlyLimitUsd.toFixed(2)} USD
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="text-sm text-muted">{s.data.reason}</p>
+      )}
+      <p className="mt-3 text-xs text-muted">Limity i model zmienia się w konfiguracji serwera (wrangler.jsonc). Rzeczywiste koszty widać w konsoli Anthropic.</p>
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const me = useMe();
   if (me.isPending) return <Spinner label="Ładowanie…" />;
@@ -246,6 +276,7 @@ export function SettingsPage() {
         <ProfileCard me={me.data} />
         <ThemeCard me={me.data} />
         <PasskeysCard />
+        <AiCard />
         <AccountCard me={me.data} />
       </div>
     </>

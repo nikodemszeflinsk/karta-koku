@@ -11,6 +11,7 @@ import {
   SOURCE_TYPES,
   VERIFICATION_STATUSES,
 } from "../../shared/knowledge";
+import { CHAT_MODES, CHAT_TOPIC_TYPES } from "../../shared/ai";
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /*
@@ -591,4 +592,87 @@ export const contentRevisions = sqliteTable(
     changedAt: createdAt(),
   },
   (t) => [uniqueIndex("content_revisions_uq").on(t.entityType, t.entityId, t.version)],
+);
+
+// ---------------------------------------------------------------------------
+// Stage 3: AI coach
+// ---------------------------------------------------------------------------
+
+export const chatSessions = sqliteTable(
+  "chat_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mode: text("mode", { enum: CHAT_MODES }).notNull(),
+    title: text("title").notNull(),
+    topicType: text("topic_type", { enum: CHAT_TOPIC_TYPES }),
+    topicId: text("topic_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("chat_sessions_user_idx").on(t.userId, t.updatedAt)],
+);
+
+export const chatMessages = sqliteTable(
+  "chat_messages",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => chatSessions.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["user", "assistant"] }).notNull(),
+    /** Empty when `redacted` — confidential turns are not stored without consent. */
+    content: text("content").notNull(),
+    redacted: integer("redacted", { mode: "boolean" }).notNull().default(false),
+    model: text("model"),
+    stopReason: text("stop_reason"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("chat_messages_session_idx").on(t.sessionId, t.createdAt)],
+);
+
+/** Token usage per user, day (Europe/Warsaw) and model — basis for budgets. */
+export const aiUsage = sqliteTable(
+  "ai_usage",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    model: text("model").notNull(),
+    requests: integer("requests").notNull().default(0),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    costMicroUsd: integer("cost_micro_usd").notNull().default(0),
+  },
+  (t) => [uniqueIndex("ai_usage_uq").on(t.userId, t.day, t.model), index("ai_usage_day_idx").on(t.day)],
+);
+
+/** Structured evaluations of the learner's answers (feeds weak areas and, in Stage 4, mastery). */
+export const answerEvaluations = sqliteTable(
+  "answer_evaluations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    correctness: integer("correctness").notNull(),
+    reasoningQuality: integer("reasoning_quality").notNull(),
+    selfConfidence: integer("self_confidence"),
+    verdict: text("verdict", { enum: ["correct", "partially_correct", "incorrect"] }).notNull(),
+    feedback: text("feedback").notNull(),
+    misconceptions: text("misconceptions", { mode: "json" }).$type<string[]>().notNull(),
+    followUpQuestion: text("follow_up_question"),
+    competencyKeys: text("competency_keys", { mode: "json" }).$type<string[]>().notNull(),
+    model: text("model").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("answer_evaluations_user_idx").on(t.userId, t.createdAt)],
 );
