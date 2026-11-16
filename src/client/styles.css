@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens: neutral "lab" surfaces, one warm accent (salmon/nigiri). */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef0f3;
+  --color-border: #dde1e7;
+  --color-fg: #111827;
+  --color-muted: #5b6472;
+  --color-accent: #c2410c;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #fff1e8;
+  --color-ok: #15803d;
+  --color-warn: #a16207;
+  --color-danger: #b91c1c;
+}
+
+@layer base {
+  .dark {
+    --color-bg: #0d1117;
+    --color-surface: #151b23;
+    --color-surface-2: #1d2530;
+    --color-border: #2a3441;
+    --color-fg: #e6e9ee;
+    --color-muted: #9aa4b2;
+    --color-accent: #fb923c;
+    --color-accent-fg: #1a0d03;
+    --color-accent-soft: #2a1a10;
+    --color-ok: #4ade80;
+    --color-warn: #facc15;
+    --color-danger: #f87171;
+  }
+
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-fg antialiased;
+    font-family: var(--font-sans);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

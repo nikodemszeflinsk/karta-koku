@@ -1,0 +1,5 @@
+# Copy to .dev.vars (ignored by git) and fill in locally. Never commit real values.
+# Generate with: openssl rand -base64 32
+BETTER_AUTH_SECRET=
+# One-time token required to create the owner account on /setup
+SETUP_TOKEN=

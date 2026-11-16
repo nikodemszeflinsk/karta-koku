@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sushi-chef-lab",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sushi-chef-lab",
+      // Placeholder for local development. The real ID is set only after the
+      // owner creates the database in Cloudflare (Stage 7).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "APP_URL": "http://localhost:5173",
+    "AI_ENABLED": "false",
+    "AI_MODEL": "claude-sonnet-5-5",
+    "AI_MODEL_LIGHT": "claude-haiku-5-5"
+  }
+}
