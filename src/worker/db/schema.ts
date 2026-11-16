@@ -12,6 +12,7 @@ import {
   VERIFICATION_STATUSES,
 } from "../../shared/knowledge";
 import { CHAT_MODES, CHAT_TOPIC_TYPES } from "../../shared/ai";
+import { QUESTION_TYPES, QUIZ_KINDS } from "../../shared/learning";
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /*
@@ -675,4 +676,260 @@ export const answerEvaluations = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("answer_evaluations_user_idx").on(t.userId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Stage 4: learning, exams, mastery, spaced repetition
+// ---------------------------------------------------------------------------
+
+export const learningModules = sqliteTable(
+  "learning_modules",
+  {
+    id: text("id").primaryKey(),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => knowledgeCategories.id, { onDelete: "cascade" }),
+    levelId: text("level_id").references(() => levels.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdBy: userRef("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("learning_modules_category_idx").on(t.categoryId, t.sortOrder)],
+);
+
+export const lessons = sqliteTable(
+  "lessons",
+  {
+    id: text("id").primaryKey(),
+    moduleId: text("module_id")
+      .notNull()
+      .references(() => learningModules.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdBy: userRef("created_by"),
+    updatedBy: userRef("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("lessons_module_idx").on(t.moduleId, t.sortOrder)],
+);
+
+export const lessonCompetencies = sqliteTable(
+  "lesson_competencies",
+  {
+    lessonId: text("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    competencyId: text("competency_id")
+      .notNull()
+      .references(() => competencies.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.lessonId, t.competencyId] })],
+);
+
+export const questions = sqliteTable(
+  "questions",
+  {
+    id: text("id").primaryKey(),
+    type: text("type", { enum: QUESTION_TYPES }).notNull(),
+    prompt: text("prompt").notNull(),
+    /** Model answer / grading rubric. Shown after answering. */
+    explanation: text("explanation").notNull(),
+    difficulty: integer("difficulty").notNull().default(2),
+    categoryId: text("category_id").references(() => knowledgeCategories.id, { onDelete: "set null" }),
+    lessonId: text("lesson_id").references(() => lessons.id, { onDelete: "set null" }),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdBy: userRef("created_by"),
+    updatedBy: userRef("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("questions_category_idx").on(t.categoryId), index("questions_lesson_idx").on(t.lessonId)],
+);
+
+export const questionOptions = sqliteTable(
+  "question_options",
+  {
+    id: text("id").primaryKey(),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    isCorrect: integer("is_correct", { mode: "boolean" }).notNull().default(false),
+    /** For "match" questions: the correct counterpart of this option. */
+    matchTarget: text("match_target"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("question_options_question_idx").on(t.questionId)],
+);
+
+export const questionCompetencies = sqliteTable(
+  "question_competencies",
+  {
+    questionId: text("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    competencyId: text("competency_id")
+      .notNull()
+      .references(() => competencies.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.questionId, t.competencyId] }), index("question_competencies_competency_idx").on(t.competencyId)],
+);
+
+export const quizzes = sqliteTable("quizzes", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  kind: text("kind", { enum: QUIZ_KINDS }).notNull(),
+  levelId: text("level_id").references(() => levels.id, { onDelete: "set null" }),
+  categoryId: text("category_id").references(() => knowledgeCategories.id, { onDelete: "set null" }),
+  /** Minimum score (0–100) to pass. */
+  passThreshold: integer("pass_threshold").notNull().default(70),
+  /** Practice quizzes created on demand belong to one user. */
+  ownerId: text("owner_id").references(() => users.id, { onDelete: "cascade" }),
+  createdBy: userRef("created_by"),
+  createdAt: createdAt(),
+});
+
+export const quizQuestions = sqliteTable(
+  "quiz_questions",
+  {
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quizzes.id, { onDelete: "cascade" }),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.quizId, t.questionId] })],
+);
+
+export const quizAttempts = sqliteTable(
+  "quiz_attempts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quizzes.id, { onDelete: "cascade" }),
+    startedAt: createdAt(),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    score: integer("score"),
+    passed: integer("passed", { mode: "boolean" }),
+  },
+  (t) => [index("quiz_attempts_user_idx").on(t.userId, t.startedAt)],
+);
+
+export const attemptAnswers = sqliteTable(
+  "attempt_answers",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Null for answers given in a review session. */
+    attemptId: text("attempt_id").references(() => quizAttempts.id, { onDelete: "cascade" }),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    answerText: text("answer_text").notNull().default(""),
+    selectedOptionIds: text("selected_option_ids", { mode: "json" }).$type<string[]>().notNull(),
+    matches: text("matches", { mode: "json" }).$type<Record<string, string>>(),
+    selfConfidence: integer("self_confidence"),
+    correctness: integer("correctness").notNull(),
+    /** Null when not graded for reasoning (no justification, or AI off). */
+    reasoningQuality: integer("reasoning_quality"),
+    /** Final evidence score used for mastery (0–100). */
+    evidence: integer("evidence").notNull(),
+    feedback: text("feedback").notNull().default(""),
+    gradedBy: text("graded_by", { enum: ["auto", "ai", "self"] }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("attempt_answers_attempt_question_uq").on(t.attemptId, t.questionId),
+    index("attempt_answers_user_idx").on(t.userId, t.createdAt),
+    index("attempt_answers_question_idx").on(t.questionId),
+  ],
+);
+
+export const learningProgress = sqliteTable(
+  "learning_progress",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lessonId: text("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    lastOpenedAt: integer("last_opened_at", { mode: "timestamp_ms" }).notNull(),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.lessonId] }), index("learning_progress_recent_idx").on(t.userId, t.lastOpenedAt)],
+);
+
+export const masteryRecords = sqliteTable(
+  "mastery_records",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    competencyId: text("competency_id")
+      .notNull()
+      .references(() => competencies.id, { onDelete: "cascade" }),
+    score: integer("score").notNull(),
+    evidenceCount: integer("evidence_count").notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.competencyId] })],
+);
+
+export const reviewSchedule = sqliteTable(
+  "review_schedule",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    dueAt: integer("due_at", { mode: "timestamp_ms" }).notNull(),
+    reps: integer("reps").notNull().default(0),
+    lapses: integer("lapses").notNull().default(0),
+    /** Full FSRS card state (ts-fsrs DefaultScheduler card). */
+    card: text("card", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    lastResult: integer("last_result"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.questionId] }), index("review_schedule_due_idx").on(t.userId, t.dueAt)],
+);
+
+export const reviewLogs = sqliteTable(
+  "review_logs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    answerId: text("answer_id").references(() => attemptAnswers.id, { onDelete: "set null" }),
+    rating: integer("rating").notNull(),
+    evidence: integer("evidence").notNull(),
+    selfConfidence: integer("self_confidence"),
+    nextDueAt: integer("next_due_at", { mode: "timestamp_ms" }).notNull(),
+    reviewedAt: createdAt(),
+  },
+  (t) => [index("review_logs_user_idx").on(t.userId, t.reviewedAt)],
 );

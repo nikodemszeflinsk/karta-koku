@@ -9,6 +9,8 @@ import {
   evaluationOutputSchema,
   ingredientDraftOutputSchema,
   ingredientDraftSchema,
+  lessonDraftOutputSchema,
+  lessonDraftSchema,
   sendMessageSchema,
   type AiStatus,
   type ChatMessageRow,
@@ -22,13 +24,17 @@ import {
   COACH_SYSTEM_PROMPT,
   EVALUATION_SYSTEM_PROMPT,
   INGREDIENT_DRAFT_SYSTEM_PROMPT,
+  LESSON_DRAFT_SYSTEM_PROMPT,
   modeInstruction,
   titlePrompt,
 } from "../../ai/prompts";
 import { getAiProvider, toHttpError } from "../../ai/provider";
 import { guardAiRequest, recordUsage, spentMicroUsd } from "../../ai/usage";
 import type { Db } from "../../db/client";
-import { answerEvaluations, chatMessages, chatSessions, competencies, ingredientProperties, ingredients, knowledgeCategories, sources } from "../../db/schema";
+import { answerEvaluations, chatMessages, chatSessions, competencies, ingredientProperties, ingredients, knowledgeCategories, learningModules, lessonCompetencies, lessons, levels, questions, sources } from "../../db/schema";
+import { questionInputSchema } from "../../../shared/learning";
+import { indexStatements } from "../../lib/search";
+import { questionWrites } from "../learning/routes";
 import { HttpError } from "../../lib/errors";
 import { iso, notFound, requireEditor } from "../../lib/knowledge";
 import { validationHook } from "../../lib/validation";
@@ -324,6 +330,85 @@ export const aiRoutes = new Hono<AppEnv>()
       ]);
       await reindexIngredient(db, ing.id);
       return c.json({ added: props.length, sourceId }, 201);
+    } catch (err) {
+      throw toHttpError(err);
+    }
+  })
+
+  // ---- AI draft of a lesson with questions (editors) ----
+  .post("/drafts/lesson", requireEditor, zValidator("json", lessonDraftSchema, validationHook), async (c) => {
+    const cfg = aiConfig(c.env);
+    requireEnabled(cfg);
+    const input = c.req.valid("json");
+    const db = c.var.db;
+    const user = c.var.user!;
+    const [cat] = await db.select().from(knowledgeCategories).where(eq(knowledgeCategories.slug, input.categorySlug));
+    if (!cat) throw new HttpError(400, "validation_error", "Nieznana kategoria.", { categorySlug: "Nieznana kategoria" });
+    const [lvl] = input.levelKey ? await db.select().from(levels).where(eq(levels.key, input.levelKey)) : [];
+    const comps = await db.select({ id: competencies.id, key: competencies.key, name: competencies.name, levelId: competencies.levelId }).from(competencies);
+    const usable = lvl ? comps.filter((x) => x.levelId === lvl.id) : comps;
+    await guardAiRequest(db, cfg, user.id);
+    try {
+      const res = await getAiProvider(cfg).structured(
+        {
+          model: cfg.model,
+          system: [LESSON_DRAFT_SYSTEM_PROMPT],
+          messages: [
+            {
+              role: "user",
+              content: `Kategoria: ${cat.name}\nPoziom: ${lvl?.name ?? "kucharz zaawansowany → chef"}\nTemat lekcji: ${input.topic}\nDostępne kompetencje: ${usable.map((x) => `${x.key} (${x.name})`).join(", ")}`,
+            },
+          ],
+          maxTokens: Math.max(cfg.maxOutputTokens, 6000),
+          effort: cfg.effort,
+        },
+        lessonDraftOutputSchema,
+      );
+      await recordUsage(db, user.id, res.model, res.usage);
+      const d = res.data;
+      if (!d || !d.title.trim() || !d.body.trim()) throw new HttpError(502, "ai_no_result", "Trener nie przygotował lekcji. Spróbuj ponownie.");
+      const byKey = new Map(comps.map((x) => [x.key, x.id]));
+      const today = new Date().toISOString().slice(0, 10);
+      const sourceId = crypto.randomUUID();
+      // One "AI drafts" module per category collects generated lessons until the owner moves/edits them.
+      const [mod] = await db.select({ id: learningModules.id }).from(learningModules).where(and(eq(learningModules.categoryId, cat.id), eq(learningModules.title, "Szkice AI")));
+      const moduleId = mod?.id ?? crypto.randomUUID();
+      const lessonId = crypto.randomUUID();
+      const lessonComps = [...new Set(d.competency_keys.map((k) => byKey.get(k)).filter((v): v is string => Boolean(v)))];
+      // Keep only questions that pass the same validation as manual ones.
+      const qs = d.questions
+        .map((q) =>
+          questionInputSchema.safeParse({
+            type: q.type,
+            prompt: q.prompt,
+            explanation: q.explanation,
+            difficulty: Math.min(3, Math.max(1, q.difficulty)),
+            categorySlug: cat.slug,
+            lessonId,
+            competencyKeys: q.competency_keys.filter((k) => byKey.has(k)),
+            options: q.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect, matchTarget: o.matchTarget })),
+            status: "needs_verification",
+            sourceId,
+          }),
+        )
+        .filter((r) => r.success)
+        .map((r) => r.data)
+        .slice(0, 8);
+      await db.batch([
+        db.insert(sources).values({ id: sourceId, type: "ai_draft", title: `Szkic AI: ${d.title.slice(0, 120)} (${res.model}, ${today})`, notes: "Wygenerowane automatycznie. Wymaga weryfikacji.", retrievedAt: today, ownerId: user.id }),
+        ...(mod ? [] : [db.insert(learningModules).values({ id: moduleId, categoryId: cat.id, levelId: lvl?.id ?? null, title: "Szkice AI", description: "Lekcje wygenerowane przez trenera AI — do weryfikacji.", sortOrder: 9999, createdBy: user.id })]),
+        db.insert(lessons).values({ id: lessonId, moduleId, title: d.title.trim().slice(0, 160), body: d.body.trim().slice(0, 50000), status: "needs_verification", sourceId, createdBy: user.id, updatedBy: user.id }),
+        ...lessonComps.map((cid) => db.insert(lessonCompetencies).values({ lessonId, competencyId: cid })),
+        ...indexStatements(db, { type: "lesson", id: lessonId, ownerId: null, title: d.title, body: d.body }),
+      ]);
+      for (const q of qs) {
+        const qid = crypto.randomUUID();
+        await db.batch([
+          db.insert(questions).values({ id: qid, type: q.type, prompt: q.prompt, explanation: q.explanation, difficulty: q.difficulty, categoryId: cat.id, lessonId, status: "needs_verification", sourceId, createdBy: user.id, updatedBy: user.id }),
+          ...questionWrites(db, qid, q, q.competencyKeys.map((k) => byKey.get(k)!)),
+        ]);
+      }
+      return c.json({ lessonId, questions: qs.length }, 201);
     } catch (err) {
       throw toHttpError(err);
     }

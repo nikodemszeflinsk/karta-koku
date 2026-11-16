@@ -147,7 +147,7 @@ export const NOTE_TARGET_LABELS: Record<NoteTarget, string> = {
   recipe: "Receptura",
 };
 
-export const SEARCH_TYPES = ["ingredient", "technique", "menu_item", "recipe", "note", "source"] as const;
+export const SEARCH_TYPES = ["ingredient", "technique", "menu_item", "recipe", "note", "source", "lesson", "question"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
 
 // ---------------------------------------------------------------------------

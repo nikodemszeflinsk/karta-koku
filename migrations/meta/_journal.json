@@ -43,6 +43,13 @@
       "when": 1794840301400,
       "tag": "0005_ai_coach",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794841236764,
+      "tag": "0006_learning",
+      "breakpoints": true
     }
   ]
 }

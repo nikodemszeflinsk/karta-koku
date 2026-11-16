@@ -129,3 +129,25 @@ export type ChatStreamEvent =
   | { type: "delta"; text: string }
   | { type: "done"; messageId: string; stopReason: string | null; costUsd: number }
   | { type: "error"; message: string };
+
+export const lessonDraftSchema = z.object({
+  categorySlug: z.string().max(60),
+  levelKey: z.string().max(40).nullable().optional(),
+  topic: z.string().trim().min(3, "Opisz temat lekcji").max(300),
+});
+
+export const lessonDraftOutputSchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  competency_keys: z.array(z.string()),
+  questions: z.array(
+    z.object({
+      type: z.enum(["single", "multi", "open", "explain_process", "error_analysis", "scenario", "compare", "fill_composition", "identify", "match"]),
+      prompt: z.string(),
+      explanation: z.string(),
+      difficulty: z.number().int(),
+      options: z.array(z.object({ text: z.string(), isCorrect: z.boolean(), matchTarget: z.string().nullable() })),
+      competency_keys: z.array(z.string()),
+    }),
+  ),
+});

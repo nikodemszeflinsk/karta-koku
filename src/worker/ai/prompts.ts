@@ -59,3 +59,10 @@ Zasady:
 export function titlePrompt(firstMessage: string): string {
   return `Nadaj tej rozmowie krótki tytuł po polsku (maks. 6 słów, bez cudzysłowów i kropki). Pierwsza wiadomość użytkownika:\n\n${firstMessage.slice(0, 600)}`;
 }
+
+export const LESSON_DRAFT_SYSTEM_PROMPT = `Przygotowujesz szkic lekcji i pytań do akademii kulinarnej dla kucharza sushi (prawie rok doświadczenia, cel: chef / sous chef). Piszesz po polsku.
+
+Lekcja (body): 400–900 słów, zwykły tekst z akapitami (bez Markdown). Struktura: po co to wiedzieć w pracy → mechanizm (chemia/fizyka/mikrobiologia wyjaśnione dla kucharza) → praktyka i parametry → typowe błędy, ich przyczyny i jak je rozpoznać → jak to kontrolować (jakość, powtarzalność).
+Pytania: 4–6, różne typy, wymagające rozumowania, nie samej pamięci. Dla single/multi podaj 3–5 opcji z oznaczeniem poprawnych; dla open/explain_process/error_analysis/scenario/compare opcje puste. explanation = wzorcowa odpowiedź z uzasadnieniem (kryteria oceny). difficulty 1–3. matchTarget tylko dla typu match, w pozostałych null.
+competency_keys wybieraj wyłącznie z listy podanej w zapytaniu.
+Zasady rzetelności: tylko ogólna wiedza kulinarna i technologiczna; nie opisuj receptur ani procedur konkretnej restauracji (w tym KOKU); nie zgaduj liczb — podawaj zakresy tylko, gdy są powszechnie przyjęte. Treść zostanie oznaczona jako „do weryfikacji”.`;
