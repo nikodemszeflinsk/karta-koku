@@ -1,6 +1,6 @@
 # Sushi Chef Lab — ETAP 0: analiza, architektura i plan
 
-Status: **projekt do akceptacji właściciela.** Na tym etapie nie powstał kod aplikacji, nie utworzono żadnych zasobów Cloudflare/Anthropic, nie skonfigurowano sekretów ani domeny.
+Status: **zaakceptowany z decyzjami właściciela (sekcja 16).** Na tym etapie nie powstał kod aplikacji, nie utworzono żadnych zasobów Cloudflare/Anthropic, nie skonfigurowano sekretów ani domeny.
 
 Data analizy: 2026-11-16 (Europe/Warsaw).
 
@@ -312,3 +312,15 @@ Wszystko w Etapach 1–6 działa lokalnie (Miniflare/workerd emuluje D1 i R2) �
 ## 15. Następny krok
 
 Po akceptacji (z ewentualnymi zmianami) rozpoczynam **Etap 1** lokalnie, bez zakładania zasobów w chmurze. Etap zakończę raportem: działające funkcje, testy, lista plików, znane ograniczenia, instrukcja uruchomienia, co faktycznie sprawdzono.
+
+## 16. Decyzje właściciela (2026-11-16)
+
+| # | Decyzja | Konsekwencja w projekcie |
+|---|---|---|
+| 1 | Brak konta Cloudflare; docelowo plan **darmowy**, adres `*.workers.dev` | Etapy 1–6 lokalnie. Logowanie projektowane pod limit CPU planu darmowego: passkey jako główna metoda; dla hasła — hashowanie mieszczące się w limicie (weryfikacja pomiarem na początku Etapu 1). Konto Cloudflare zakłada właściciel dopiero przed Etapem 7. |
+| 2 | Passkey **tak** (obok e-mail + hasło) | plugin passkey Better Auth; zaproszenia jako link kopiowany ręcznie |
+| 3 | Koszt AI **jak najniższy** | `AI_MODEL=claude-sonnet-5-5` (rozmowy, lekcje, ocena odpowiedzi), `AI_MODEL_LIGHT=claude-haiku-5-5` (proste zadania: krótkie pytania, klasyfikacja, podpowiedzi); niski `effort`, prompt caching, niskie limity dzienne domyślnie |
+| 4 | Treść: szkice AI jako `needs_verification`, akceptuje właściciel | zgodnie z sekcją 5.5 |
+| 5 | Karta KOKU z oficjalnej strony | Strona kokusushi.pl **nie publikuje karty w PDF** — menu jest w zamówieniach online per lokal (forgastro) i w linku „Menu sezonowe”. Import po wskazaniu lokalu; dane ze strony = status `confirmed`? **Nie** — źródło publiczne (`web`), status `general_knowledge`/`confirmed` tylko dla tego, co strona faktycznie podaje, z datą pobrania. |
+| 6 | Sejf „ma być po prostu bezpieczny” | Argon2id + AES-GCM-256 zgodnie z sekcją 9; przy zakładaniu sejfu generowany jednorazowo **klucz odzyskiwania** do zapisania |
+| 7 | Offline — brak odpowiedzi | domyślnie: aplikacja instalowalna, bez offline dla danych prywatnych; do zmiany później |
