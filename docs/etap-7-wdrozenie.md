@@ -35,3 +35,10 @@ Po utworzeniu konta właściciela możesz usunąć sekret `SETUP_TOKEN` (`wrangl
 ## Kopie zapasowe
 
 D1 ma wbudowane przywracanie do punktu w czasie (Time Travel). Eksport ręczny: `npx wrangler d1 export sushi-chef-lab --remote --output backup.sql`. Sejf jest w kopii zaszyfrowany — bez hasła lub klucza odzyskiwania kopia nie ujawnia receptur.
+
+## Stan wdrożenia (2026-11-16)
+
+- Baza D1 `sushi-chef-lab` (region WEUR, id `d09aebcf-b03a-4a5b-a2b5-cbd5e9a0abae`) — utworzona, 8 migracji wgranych, dane referencyjne i materiały KOKU obecne, 0 użytkowników.
+- Worker `sushi-chef-lab` pod `https://sushi-chef-lab.nikodemszeflinsk.workers.dev`; sekrety `BETTER_AUTH_SECRET` i `SETUP_TOKEN` ustawione; `ANTHROPIC_API_KEY` — brak (trener AI wyłączony).
+- Publikacja: **Cloudflare Workers Builds** połączone z repozytorium `karta-koku`, gałąź `claude/festive-wright-usele0`; build: `npx vite build`, deploy: `npx wrangler deploy`, `NODE_VERSION=22`. Każdy push na tę gałąź publikuje nową wersję.
+- Uwaga: bezpośredni `wrangler deploy` z sesji Claude Code w chmurze nie działa (proxy podmienia token wysyłki plików) — publikacja idzie przez Workers Builds.
