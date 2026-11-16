@@ -15,6 +15,27 @@
       "when": 1794837980171,
       "tag": "0001_seed_reference_data",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794839494922,
+      "tag": "0002_knowledge_base",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794839496022,
+      "tag": "0003_allergens_and_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794839496969,
+      "tag": "0004_koku_public_materials",
+      "breakpoints": true
     }
   ]
 }

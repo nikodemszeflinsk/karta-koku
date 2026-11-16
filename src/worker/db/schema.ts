@@ -1,5 +1,17 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import {
+  COMPONENT_ROLES,
+  CURRENCY_STATUSES,
+  INGREDIENT_ASPECTS,
+  MENU_KINDS,
+  MENU_TIERS,
+  NOTE_KINDS,
+  NOTE_TARGETS,
+  RECIPE_LINE_ROLES,
+  SOURCE_TYPES,
+  VERIFICATION_STATUSES,
+} from "../../shared/knowledge";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /*
  * Conventions
@@ -244,4 +256,339 @@ export const knowledgeCategories = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [index("knowledge_categories_parent_idx").on(t.parentId)],
+);
+
+// ---------------------------------------------------------------------------
+// Stage 2: knowledge base
+// ---------------------------------------------------------------------------
+
+const verificationStatus = () =>
+  text("status", { enum: VERIFICATION_STATUSES }).notNull().default("needs_verification");
+
+
+export const sources = sqliteTable(
+  "sources",
+  {
+    id: text("id").primaryKey(),
+    type: text("type", { enum: SOURCE_TYPES }).notNull(),
+    title: text("title").notNull(),
+    reference: text("reference"),
+    notes: text("notes"),
+    retrievedAt: text("retrieved_at"),
+    isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
+    ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("sources_owner_idx").on(t.ownerId)],
+);
+
+const sourceRef = () => text("source_id").references(() => sources.id, { onDelete: "set null" });
+const userRef = (name: string) => text(name).references(() => users.id, { onDelete: "set null" });
+
+export const ingredients = sqliteTable(
+  "ingredients",
+  {
+    id: text("id").primaryKey(),
+    namePl: text("name_pl").notNull(),
+    /** foldText(namePl): case- and diacritic-insensitive uniqueness ("Ryż" = "RYZ"). */
+    nameKey: text("name_key").notNull(),
+    nameOriginal: text("name_original"),
+    transliteration: text("transliteration"),
+    categoryId: text("category_id").references(() => knowledgeCategories.id, { onDelete: "set null" }),
+    origin: text("origin"),
+    description: text("description"),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdBy: userRef("created_by"),
+    updatedBy: userRef("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("ingredients_name_key_uq").on(t.nameKey),
+    index("ingredients_category_idx").on(t.categoryId),
+  ],
+);
+
+
+export const ingredientProperties = sqliteTable(
+  "ingredient_properties",
+  {
+    id: text("id").primaryKey(),
+    ingredientId: text("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    aspect: text("aspect", { enum: INGREDIENT_ASPECTS }).notNull(),
+    content: text("content").notNull(),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdBy: userRef("created_by"),
+    updatedBy: userRef("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("ingredient_properties_ingredient_idx").on(t.ingredientId, t.aspect)],
+);
+
+export const ingredientSubstitutes = sqliteTable(
+  "ingredient_substitutes",
+  {
+    id: text("id").primaryKey(),
+    ingredientId: text("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    substituteId: text("substitute_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    context: text("context"),
+    consequences: text("consequences"),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    createdBy: userRef("created_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("ingredient_substitutes_uq").on(t.ingredientId, t.substituteId)],
+);
+
+/** The 14 allergens of EU Regulation 1169/2011, Annex II. */
+export const allergens = sqliteTable("allergens", {
+  id: text("id").primaryKey(),
+  namePl: text("name_pl").notNull(),
+  sortOrder: integer("sort_order").notNull(),
+});
+
+export const ingredientAllergens = sqliteTable(
+  "ingredient_allergens",
+  {
+    ingredientId: text("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    allergenId: text("allergen_id")
+      .notNull()
+      .references(() => allergens.id),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+  },
+  (t) => [primaryKey({ columns: [t.ingredientId, t.allergenId] })],
+);
+
+export const techniques = sqliteTable(
+  "techniques",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
+    categoryId: text("category_id").references(() => knowledgeCategories.id, { onDelete: "set null" }),
+    description: text("description"),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdBy: userRef("created_by"),
+    updatedBy: userRef("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("techniques_name_key_uq").on(t.nameKey)],
+);
+
+// ---- Menu (Karta KOKU) ----
+
+export const menuVersions = sqliteTable("menu_versions", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  validFrom: text("valid_from"),
+  validTo: text("valid_to"),
+  isCurrent: integer("is_current", { mode: "boolean" }).notNull().default(false),
+  notes: text("notes"),
+  createdBy: userRef("created_by"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+
+export const menuCategories = sqliteTable(
+  "menu_categories",
+  {
+    id: text("id").primaryKey(),
+    menuVersionId: text("menu_version_id")
+      .notNull()
+      .references(() => menuVersions.id, { onDelete: "cascade" }),
+    tier: text("tier", { enum: MENU_TIERS }).notNull(),
+    kind: text("kind", { enum: MENU_KINDS }).notNull(),
+  },
+  (t) => [uniqueIndex("menu_categories_uq").on(t.menuVersionId, t.tier, t.kind)],
+);
+
+
+export const menuItems = sqliteTable(
+  "menu_items",
+  {
+    id: text("id").primaryKey(),
+    menuCategoryId: text("menu_category_id")
+      .notNull()
+      .references(() => menuCategories.id, { onDelete: "cascade" }),
+    code: text("code"),
+    name: text("name").notNull(),
+    description: text("description"),
+    technique: text("technique"),
+    texture: text("texture"),
+    flavor: text("flavor"),
+    portion: text("portion"),
+    priceGrosze: integer("price_grosze"),
+    componentsComplete: integer("components_complete", { mode: "boolean" }).notNull().default(false),
+    currencyStatus: text("currency_status", { enum: CURRENCY_STATUSES }).notNull().default("to_check"),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdBy: userRef("created_by"),
+    updatedBy: userRef("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("menu_items_category_idx").on(t.menuCategoryId)],
+);
+
+
+export const menuItemComponents = sqliteTable(
+  "menu_item_components",
+  {
+    id: text("id").primaryKey(),
+    menuItemId: text("menu_item_id")
+      .notNull()
+      .references(() => menuItems.id, { onDelete: "cascade" }),
+    role: text("role", { enum: COMPONENT_ROLES }).notNull().default("ingredient"),
+    ingredientId: text("ingredient_id").references(() => ingredients.id, { onDelete: "set null" }),
+    /** Wording exactly as in the source (e.g. "jabłko w tempurze"). */
+    label: text("label").notNull(),
+    status: verificationStatus(),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("menu_item_components_item_idx").on(t.menuItemId), index("menu_item_components_ingredient_idx").on(t.ingredientId)],
+);
+
+export const menuItemAllergens = sqliteTable(
+  "menu_item_allergens",
+  {
+    menuItemId: text("menu_item_id")
+      .notNull()
+      .references(() => menuItems.id, { onDelete: "cascade" }),
+    allergenId: text("allergen_id")
+      .notNull()
+      .references(() => allergens.id),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+  },
+  (t) => [primaryKey({ columns: [t.menuItemId, t.allergenId] })],
+);
+
+// ---- Private recipes ----
+
+export const recipes = sqliteTable(
+  "recipes",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    yieldText: text("yield_text"),
+    method: text("method"),
+    confidential: integer("confidential", { mode: "boolean" }).notNull().default(true),
+    status: verificationStatus(),
+    sourceId: sourceRef(),
+    version: integer("version").notNull().default(1),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("recipes_owner_idx").on(t.ownerId, t.updatedAt)],
+);
+
+
+export const recipeIngredients = sqliteTable(
+  "recipe_ingredients",
+  {
+    id: text("id").primaryKey(),
+    recipeId: text("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    ingredientId: text("ingredient_id").references(() => ingredients.id, { onDelete: "set null" }),
+    label: text("label").notNull(),
+    amount: real("amount"),
+    unit: text("unit"),
+    role: text("role", { enum: RECIPE_LINE_ROLES }).notNull().default("base"),
+    note: text("note"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("recipe_ingredients_recipe_idx").on(t.recipeId)],
+);
+
+export const recipeComponents = sqliteTable(
+  "recipe_components",
+  {
+    id: text("id").primaryKey(),
+    parentRecipeId: text("parent_recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    childRecipeId: text("child_recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    amount: real("amount"),
+    unit: text("unit"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [uniqueIndex("recipe_components_uq").on(t.parentRecipeId, t.childRecipeId)],
+);
+
+// ---- Private notebook ----
+
+
+export const notes = sqliteTable(
+  "notes",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: NOTE_KINDS }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("notes_owner_idx").on(t.ownerId, t.updatedAt)],
+);
+
+
+export const noteLinks = sqliteTable(
+  "note_links",
+  {
+    id: text("id").primaryKey(),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+    targetType: text("target_type", { enum: NOTE_TARGETS }).notNull(),
+    targetId: text("target_id").notNull(),
+  },
+  (t) => [uniqueIndex("note_links_uq").on(t.noteId, t.targetType, t.targetId), index("note_links_target_idx").on(t.targetType, t.targetId)],
+);
+
+// ---- Versioning ----
+
+export const contentRevisions = sqliteTable(
+  "content_revisions",
+  {
+    id: text("id").primaryKey(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    version: integer("version").notNull(),
+    snapshot: text("snapshot", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    changedBy: userRef("changed_by"),
+    changedAt: createdAt(),
+  },
+  (t) => [uniqueIndex("content_revisions_uq").on(t.entityType, t.entityId, t.version)],
 );
