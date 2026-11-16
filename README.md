@@ -4,7 +4,7 @@ Prywatna, polskojęzyczna akademia kulinarna dla kucharza sushi: od kucharza zaa
 
 Stack: React + Vite + Tailwind (SPA) · Cloudflare Workers + Hono (API) · D1 + Drizzle · Better Auth (hasło + passkey) · Zod · Vitest (testy w środowisku Workers).
 
-Plan i decyzje: [`docs/etap-0-plan.md`](docs/etap-0-plan.md). Raport etapu 1: [`docs/etap-1-raport.md`](docs/etap-1-raport.md).
+Plan i decyzje: [`docs/etap-0-plan.md`](docs/etap-0-plan.md). Raporty: [etap 1](docs/etap-1-raport.md), [etap 2](docs/etap-2-raport.md).
 
 ## Uruchomienie lokalne
 

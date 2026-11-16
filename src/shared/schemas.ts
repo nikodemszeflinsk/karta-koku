@@ -67,7 +67,8 @@ export interface Category {
 export interface DashboardResponse {
   greetingName: string;
   targetLevel: Level | null;
-  categories: Category[];
+  categories: (Category & { materialCount: number })[];
+  openNotes: number;
   ai: { enabled: boolean; reason: string | null };
 }
 

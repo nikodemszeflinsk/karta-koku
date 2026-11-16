@@ -36,12 +36,17 @@ function ProfileCard({ me }: { me: MeResponse }) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setSaved(false);
-    await update.mutateAsync({
-      displayName: displayName.trim(),
-      position: position.trim() || null,
-      targetLevelKey: targetLevelKey || null,
-    });
-    setSaved(true);
+    const ok = await update
+      .mutateAsync({
+        displayName: displayName.trim(),
+        position: position.trim() || null,
+        targetLevelKey: targetLevelKey || null,
+      })
+      .then(
+        () => true,
+        () => false, // error is rendered from mutation state
+      );
+    setSaved(ok);
   }
 
   return (

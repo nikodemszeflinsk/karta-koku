@@ -48,9 +48,16 @@ export function DashboardPage() {
           )}
         </Card>
 
-        <Card title="Trener AI">
-          <p className="text-sm text-muted">{d.ai.reason ?? "Trener jest dostępny."}</p>
-        </Card>
+        <div className="grid gap-4">
+          <Card title="Trener AI">
+            <p className="text-sm text-muted">{d.ai.reason ?? "Trener jest dostępny."}</p>
+          </Card>
+          <Card title="Notatnik" action={<Link to="/notatnik" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
+            <p className="text-sm text-muted">
+              {d.openNotes === 0 ? "Brak otwartych pytań." : `Otwarte pytania do wyjaśnienia: ${d.openNotes}`}
+            </p>
+          </Card>
+        </div>
 
         <Card title="Nauka i powtórki" className="lg:col-span-3">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -58,15 +65,15 @@ export function DashboardPage() {
             <EmptyState title="Dzisiejsza powtórka">Brak zaplanowanych powtórek.</EmptyState>
             <EmptyState title="Ostatnie błędy">Brak ocenionych odpowiedzi.</EmptyState>
           </div>
-          <p className="mt-3 text-xs text-muted">Lekcje, egzaminy i powtórki zostaną dodane w kolejnych etapach.</p>
+          <p className="mt-3 text-xs text-muted">Lekcje, egzaminy i powtórki pojawią się w Etapie 4.</p>
         </Card>
 
         <Card title="Kategorie Akademii" className="lg:col-span-3" action={<Link to="/akademia" className={`text-sm ${linkClass}`}>Wszystkie</Link>}>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {d.categories.map((c) => (
-              <li key={c.slug} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+              <li key={c.slug} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
                 <span>{c.name}</span>
-                <span className="text-xs text-muted">0 materiałów</span>
+                <span className="text-xs text-muted">{c.materialCount} {c.materialCount === 1 ? "wpis" : "wpisów"}</span>
               </li>
             ))}
           </ul>
