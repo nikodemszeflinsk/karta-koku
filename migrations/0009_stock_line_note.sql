@@ -1,0 +1,1 @@
+ALTER TABLE `stock_sheet_lines` ADD `note` text DEFAULT '' NOT NULL;

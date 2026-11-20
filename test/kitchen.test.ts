@@ -88,6 +88,33 @@ describe("stock lists", () => {
   });
 });
 
+describe("shopping descriptions", () => {
+  it("saves a description per line and keeps it in the closed list", async () => {
+    const id = (await json<{ id: string }>(api("/api/kitchen/stock/shopping/items", { cookie: owner, body: { name: "Cytryny", unit: "szt." } }))).id;
+    const mint = (await json<{ id: string }>(api("/api/kitchen/stock/shopping/items", { cookie: owner, body: { name: "Mięta" } }))).id;
+    expect((await api(`/api/kitchen/stock/shopping/lines/${id}`, { method: "PUT", cookie: learner, body: { qtyOrder: 10, note: "dojrzałe, bez woskowania" } })).status).toBe(200);
+    // A description alone also puts the item on the list.
+    expect((await api(`/api/kitchen/stock/shopping/lines/${mint}`, { method: "PUT", cookie: learner, body: { note: "jeśli będzie świeża" } })).status).toBe(200);
+    const s = await json<StockResponse>(api("/api/kitchen/stock/shopping", { cookie: learner }));
+    expect(s.lines.find((l) => l.itemId === id)).toMatchObject({ qtyOrder: 10, note: "dojrzałe, bez woskowania" });
+    expect((await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }))).shopping.toBuy).toBe(2);
+    const closed = await json<{ lines: { name: string; qty: number; note?: string }[] }>(api("/api/kitchen/stock/shopping/close", { cookie: learner, body: {} }));
+    expect(closed.lines).toEqual([
+      expect.objectContaining({ name: "Cytryny", qty: 10, note: "dojrzałe, bez woskowania" }),
+      expect.objectContaining({ name: "Mięta", qty: 0, note: "jeśli będzie świeża" }),
+    ]);
+  });
+});
+
+describe("free-text unit 'opis'", () => {
+  it("orders by description instead of a number", async () => {
+    const id = (await json<{ id: string }>(api("/api/kitchen/stock/wholesale/items", { cookie: owner, body: { name: "Dekoracje sezonowe", unit: "opis", parQty: 5 } }))).id;
+    expect((await api(`/api/kitchen/stock/wholesale/lines/${id}`, { method: "PUT", cookie: learner, body: { qtyHave: 1, note: "2 opakowania liści shiso" } })).status).toBe(200);
+    const closed = await json<{ lines: { name: string; qty: number; note?: string }[] }>(api("/api/kitchen/stock/wholesale/close", { cookie: learner, body: {} }));
+    expect(closed.lines.find((l) => l.name === "Dekoracje sezonowe")).toMatchObject({ qty: 0, note: "2 opakowania liści shiso" });
+  });
+});
+
 describe("shift handover", () => {
   let id = "";
   it("has a default checklist and records a handover with failure defaulting to 'Brak'", async () => {

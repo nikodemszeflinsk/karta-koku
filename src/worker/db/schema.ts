@@ -1042,6 +1042,8 @@ export const stockSheetLines = sqliteTable(
       .references(() => stockItems.id, { onDelete: "cascade" }),
     qtyHave: real("qty_have"),
     qtyOrder: real("qty_order"),
+    /** Shopping list: free-text description next to the quantity. */
+    note: text("note").notNull().default(""),
     updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
     updatedAt: updatedAt(),
   },

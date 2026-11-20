@@ -5,7 +5,7 @@ import { Textarea, useCanEdit } from "../../components/knowledge";
 import { Alert, Button, Card, EmptyState, Field, Input, Select, Spinner } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { useApiMutation } from "../../lib/use-api-mutation";
-import { fmtDateTime, fmtTemp, KitchenHeader, kk, useKitchenSummary } from "./common";
+import { fmtDateTime, fmtTemp, KitchenHeader, kk, StepNav, useKitchenSummary } from "./common";
 
 function useUnits() {
   return useQuery({ queryKey: kk.units, queryFn: async () => (await apiFetch<{ units: ColdUnit[] }>("/api/kitchen/haccp/units")).units });
@@ -45,6 +45,7 @@ export function HaccpPage() {
           </button>
         ))}
       </div>
+      {tab === "entry" && <StepNav />}
       {tab === "entry" && <EntryForm onDone={() => setTab("log")} onManage={canEdit ? () => setTab("units") : undefined} />}
       {tab === "log" && <LogView />}
       {tab === "units" && <UnitsManager />}
@@ -132,6 +133,8 @@ function EntryForm({ onDone, onManage }: { onDone: () => void; onManage?: (() =>
                   <label className="flex items-center gap-1.5">
                     <input
                       aria-label={`${u.name}: temperatura °C`}
+                      data-step=""
+                      enterKeyHint="next"
                       aria-invalid={v === undefined || out || undefined}
                       inputMode="decimal"
                       autoComplete="off"

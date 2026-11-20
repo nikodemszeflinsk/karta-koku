@@ -8,6 +8,7 @@ import {
   haccpEntrySchema,
   handoverChecksSchema,
   handoverInputSchema,
+  isTextUnit,
   orderQty,
   parseStockImport,
   STOCK_LISTS,
@@ -75,7 +76,13 @@ async function ensureOpenSheet(db: Db, list: StockList, userId: string) {
 }
 
 function lineQty(list: StockList, item: StockItem, line: { qtyHave: number | null; qtyOrder: number | null } | undefined): number {
+  if (isTextUnit(item.unit)) return 0;
   return list === "wholesale" ? orderQty(item, line) : (line?.qtyOrder ?? 0);
+}
+
+/** A line belongs on the outgoing list when it has a quantity or a description (unit "opis" = free text). */
+function isPending(list: StockList, item: StockItem, line: { qtyHave: number | null; qtyOrder: number | null; note: string } | undefined): boolean {
+  return lineQty(list, item, line) > 0 || Boolean(line?.note);
 }
 
 async function computeSummaryLines(db: Db, list: StockList, sheetId: string): Promise<StockSheetSummaryLine[]> {
@@ -85,9 +92,10 @@ async function computeSummaryLines(db: Db, list: StockList, sheetId: string): Pr
   return items
     .map((it) => {
       const l = byItem.get(it.id);
-      return { name: it.name, unit: it.unit, groupName: it.groupName, qtyHave: l?.qtyHave ?? null, parQty: it.parQty, qty: lineQty(list, it, l) };
+      return { line: l, out: { name: it.name, unit: it.unit, groupName: it.groupName, qtyHave: l?.qtyHave ?? null, parQty: it.parQty, qty: lineQty(list, it, l), note: l?.note ?? "" }, item: it };
     })
-    .filter((l) => l.qty > 0);
+    .filter((x) => isPending(list, x.item, x.line))
+    .map((x) => x.out);
 }
 
 const stockRoutes = new Hono<AppEnv>()
@@ -97,7 +105,9 @@ const stockRoutes = new Hono<AppEnv>()
     const items = await activeItems(db, list);
     const sheet = await openSheet(db, list);
     const lines = sheet
-      ? await db.select({ itemId: stockSheetLines.itemId, qtyHave: stockSheetLines.qtyHave, qtyOrder: stockSheetLines.qtyOrder }).from(stockSheetLines).where(eq(stockSheetLines.sheetId, sheet.id))
+      ? await db
+          .select({ itemId: stockSheetLines.itemId, qtyHave: stockSheetLines.qtyHave, qtyOrder: stockSheetLines.qtyOrder, note: stockSheetLines.note })
+          .from(stockSheetLines).where(eq(stockSheetLines.sheetId, sheet.id))
       : [];
     return c.json({ list, items, sheetId: sheet?.id ?? null, updatedAt: sheet ? iso(sheet.updatedAt) : null, lines } satisfies StockResponse);
   })
@@ -109,11 +119,11 @@ const stockRoutes = new Hono<AppEnv>()
     const [item] = await db.select({ id: stockItems.id }).from(stockItems).where(and(eq(stockItems.id, itemId), eq(stockItems.list, list), eq(stockItems.active, true)));
     if (!item) notFound("Nie znaleziono pozycji.");
     const sheet = await ensureOpenSheet(db, list, userId);
-    const set = { ...(body.qtyHave !== undefined && { qtyHave: body.qtyHave }), ...(body.qtyOrder !== undefined && { qtyOrder: body.qtyOrder }), updatedBy: userId, updatedAt: new Date() };
+    const set = { ...(body.qtyHave !== undefined && { qtyHave: body.qtyHave }), ...(body.qtyOrder !== undefined && { qtyOrder: body.qtyOrder }), ...(body.note !== undefined && { note: body.note }), updatedBy: userId, updatedAt: new Date() };
     await db.batch([
       db
         .insert(stockSheetLines)
-        .values({ sheetId: sheet.id, itemId, qtyHave: body.qtyHave ?? null, qtyOrder: body.qtyOrder ?? null, updatedBy: userId })
+        .values({ sheetId: sheet.id, itemId, qtyHave: body.qtyHave ?? null, qtyOrder: body.qtyOrder ?? null, note: body.note ?? "", updatedBy: userId })
         .onConflictDoUpdate({ target: [stockSheetLines.sheetId, stockSheetLines.itemId], set }),
       db.update(stockSheets).set({ updatedAt: new Date() }).where(eq(stockSheets.id, sheet.id)),
     ]);
@@ -386,7 +396,7 @@ export const kitchenRoutes = new Hono<AppEnv>()
       const sheet = await openSheet(db, list);
       const lines = sheet ? await db.select().from(stockSheetLines).where(eq(stockSheetLines.sheetId, sheet.id)) : [];
       const byItem = new Map(lines.map((l) => [l.itemId, l]));
-      return { items: items.length, pending: items.filter((it) => lineQty(list, it, byItem.get(it.id)) > 0).length };
+      return { items: items.length, pending: items.filter((it) => isPending(list, it, byItem.get(it.id))).length };
     };
     const [shopping, wholesale, [last], [units], measured, [pest]] = await Promise.all([
       stock("shopping"),

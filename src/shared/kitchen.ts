@@ -19,6 +19,11 @@ export const DEFAULT_RANGES: Record<ColdUnitKind, { minC: number; maxC: number }
   freezer: { minC: -25, maxC: -18 },
 };
 
+/** Unit meaning "no number — type a free-text description instead". */
+export const TEXT_UNIT = "opis";
+export const isTextUnit = (unit: string) => unit.trim().toLowerCase() === TEXT_UNIT;
+export const UNIT_SUGGESTIONS = ["szt.", "kg", "g", "l", "opak.", "karton", "worek", "butelka", TEXT_UNIT];
+
 const qty = z.number().min(0).max(100000).nullable();
 const name = z.string().trim().min(1, "Podaj nazwę").max(120);
 
@@ -30,7 +35,7 @@ export const stockItemInputSchema = z.object({
 });
 export const stockItemUpdateSchema = stockItemInputSchema.partial().extend({ sortOrder: z.number().int().min(0).max(100000).optional() });
 export const stockImportSchema = z.object({ text: z.string().max(50000) });
-export const stockLineSchema = z.object({ qtyHave: qty.optional(), qtyOrder: qty.optional() });
+export const stockLineSchema = z.object({ qtyHave: qty.optional(), qtyOrder: qty.optional(), note: z.string().trim().max(300).optional() });
 
 export const handoverInputSchema = z
   .object({
@@ -75,6 +80,7 @@ export interface StockLine {
   itemId: string;
   qtyHave: number | null;
   qtyOrder: number | null;
+  note: string;
 }
 export interface StockSheetSummaryLine {
   name: string;
@@ -83,6 +89,8 @@ export interface StockSheetSummaryLine {
   qtyHave: number | null;
   parQty: number | null;
   qty: number;
+  /** Absent in sheets closed before descriptions existed. */
+  note?: string;
 }
 export interface StockSheetHistory {
   id: string;

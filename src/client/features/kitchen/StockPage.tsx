@@ -1,13 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { orderQty, type StockItem, type StockList, type StockResponse, type StockSheetHistory, type StockSheetSummaryLine } from "../../../shared/kitchen";
+import { isTextUnit, orderQty, UNIT_SUGGESTIONS, type StockItem, type StockList, type StockResponse, type StockSheetHistory, type StockSheetSummaryLine } from "../../../shared/kitchen";
 import { Textarea, useCanEdit } from "../../components/knowledge";
 import { Alert, Button, Card, EmptyState, Field, Input, Spinner } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { useApiMutation } from "../../lib/use-api-mutation";
-import { copyOrShare, fmtDateTime, fmtQty, KitchenHeader, kk, parseQty } from "./common";
+import { copyOrShare, fmtDateTime, fmtQty, KitchenHeader, kk, parseQty, StepNav } from "./common";
 
-type Draft = { have: string; order: string };
+type Draft = { have: string; order: string; note: string };
 
 const CONFIG: Record<StockList, { title: string; subtitle: string; icon: "cart" | "truck"; exportTitle: string; empty: string }> = {
   shopping: {
@@ -29,13 +29,19 @@ const CONFIG: Record<StockList, { title: string; subtitle: string; icon: "cart" 
 function groupBy<T extends { groupName: string }>(rows: T[]): [string, T[]][] {
   const m = new Map<string, T[]>();
   for (const r of rows) m.set(r.groupName || "Inne", [...(m.get(r.groupName || "Inne") ?? []), r]);
-  return [...m.entries()];
+  // Ungrouped items ("Inne") go last.
+  return [...m.entries()].sort(([a], [b]) => Number(a === "Inne") - Number(b === "Inne"));
 }
 
-export function exportText(title: string, lines: Pick<StockSheetSummaryLine, "name" | "unit" | "groupName" | "qty">[], when = new Date()): string {
+function exportLine(l: Pick<StockSheetSummaryLine, "name" | "unit" | "qty" | "note">): string {
+  if (l.qty > 0) return `- ${l.name}: ${fmtQty(l.qty)} ${l.unit}${l.note ? ` (${l.note})` : ""}`;
+  return `- ${l.name}${l.note ? `: ${l.note}` : ""}`;
+}
+
+export function exportText(title: string, lines: Pick<StockSheetSummaryLine, "name" | "unit" | "groupName" | "qty" | "note">[], when = new Date()): string {
   const date = when.toLocaleDateString("pl-PL", { timeZone: "Europe/Warsaw" });
   const body = groupBy(lines)
-    .map(([g, ls]) => `${g}:\n${ls.map((l) => `- ${l.name}: ${fmtQty(l.qty)} ${l.unit}`).join("\n")}`)
+    .map(([g, ls]) => `${g}:\n${ls.map(exportLine).join("\n")}`)
     .join("\n\n");
   return `${title} — ${date}\n\n${body}`;
 }
@@ -64,6 +70,7 @@ export function StockPage({ list }: { list: StockList }) {
       {q.isError && <Alert tone="error">Nie udało się wczytać listy.</Alert>}
       {q.data && (manage ? <StockManager list={list} items={q.data.items} /> : <StockSheet list={list} data={q.data} canEdit={canEdit} onManage={() => setManage(true)} />)}
       {!manage && <StockHistory list={list} />}
+      <StepNav />
     </>
   );
 }
@@ -72,7 +79,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
   const cfg = CONFIG[list];
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
-    Object.fromEntries(data.lines.map((l) => [l.itemId, { have: fmtQty(l.qtyHave), order: fmtQty(l.qtyOrder) }])),
+    Object.fromEntries(data.lines.map((l) => [l.itemId, { have: fmtQty(l.qtyHave), order: fmtQty(l.qtyOrder), note: l.note }])),
   );
   const [onlyPending, setOnlyPending] = useState(false);
   const [saving, setSaving] = useState(0);
@@ -98,7 +105,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
     if (have === undefined || order === undefined) return;
     setSaving((n) => n + 1);
     try {
-      await apiFetch(`/api/kitchen/stock/${list}/lines/${itemId}`, { method: "PUT", body: list === "wholesale" ? { qtyHave: have, qtyOrder: order } : { qtyOrder: order } });
+      await apiFetch(`/api/kitchen/stock/${list}/lines/${itemId}`, { method: "PUT", body: list === "wholesale" ? { qtyHave: have, qtyOrder: order, note: d.note } : { qtyOrder: order, note: d.note } });
       setSavedAt(new Date().toISOString());
       setSaveError(null);
       void qc.invalidateQueries({ queryKey: kk.summary });
@@ -110,7 +117,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
   };
 
   const change = (itemId: string, field: keyof Draft, value: string) => {
-    setDrafts((p) => ({ ...p, [itemId]: { ...(p[itemId] ?? { have: "", order: "" }), [field]: value } }));
+    setDrafts((p) => ({ ...p, [itemId]: { ...(p[itemId] ?? { have: "", order: "", note: "" }), [field]: value } }));
     const old = timers.current.get(itemId);
     if (old) clearTimeout(old);
     timers.current.set(itemId, setTimeout(() => void save(itemId), 800));
@@ -124,13 +131,18 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
   };
 
   const qtyOf = (it: StockItem): number => {
+    if (isTextUnit(it.unit)) return 0;
     const d = drafts[it.id];
     const have = d ? parseQty(d.have) : null;
     const order = d ? parseQty(d.order) : null;
     if (list === "shopping") return order ?? 0;
     return orderQty(it, { qtyHave: have ?? null, qtyOrder: order ?? null });
   };
-  const pendingLines = data.items.map((it) => ({ name: it.name, unit: it.unit, groupName: it.groupName, qty: qtyOf(it) })).filter((l) => l.qty > 0);
+  const noteOf = (it: StockItem) => (list === "shopping" || isTextUnit(it.unit) ? (drafts[it.id]?.note.trim() ?? "") : "");
+  const pending = (it: StockItem) => qtyOf(it) > 0 || noteOf(it) !== "";
+  const pendingLines = data.items
+    .filter(pending)
+    .map((it) => ({ name: it.name, unit: it.unit, groupName: it.groupName, qty: qtyOf(it), note: noteOf(it) }));
 
   const close = useApiMutation(() => ({ path: `/api/kitchen/stock/${list}/close`, body: {} }), [kk.stock(list), kk.stockHistory(list), kk.summary]);
 
@@ -151,7 +163,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
     );
   }
 
-  const visible = onlyPending ? data.items.filter((it) => qtyOf(it) > 0) : data.items;
+  const visible = onlyPending ? data.items.filter(pending) : data.items;
 
   return (
     <>
@@ -181,12 +193,23 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
             <h2 className="border-b border-border bg-surface-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted">{group}</h2>
             <ul className="divide-y divide-border">
               {items.map((it) => {
-                const d = drafts[it.id] ?? { have: "", order: "" };
+                const d = drafts[it.id] ?? { have: "", order: "", note: "" };
                 const q = qtyOf(it);
                 const haveBad = parseQty(d.have) === undefined;
                 const orderBad = parseQty(d.order) === undefined;
+                if (isTextUnit(it.unit)) {
+                  return (
+                    <li key={it.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
+                      <div className="min-w-0">
+                        <p className="font-medium leading-tight">{it.name}</p>
+                        <p className="text-xs text-muted">{list === "wholesale" ? "wpisz, co zamówić" : "wpisz, co kupić"}</p>
+                      </div>
+                      <NoteInput label={`${it.name}: ${list === "wholesale" ? "zamówić" : "kupić"} (opis)`} caption={list === "wholesale" ? "Zamówić — opis" : "Kupić — opis"} value={d.note} highlight={d.note.trim() !== ""} placeholder="własny tekst" onChange={(v) => change(it.id, "note", v)} onBlur={() => flush(it.id)} />
+                    </li>
+                  );
+                }
                 return (
-                  <li key={it.id} className={`grid items-center gap-x-3 gap-y-2 px-4 py-3 ${list === "wholesale" ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}>
+                  <li key={it.id} className={`grid items-center gap-x-3 gap-y-2 px-4 py-3 ${list === "wholesale" ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto_minmax(0,1.1fr)] sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,2fr)]"}`}>
                     <div className="min-w-0">
                       <p className="font-medium leading-tight">{it.name}</p>
                       <p className="text-xs text-muted">
@@ -207,6 +230,9 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
                       onChange={(v) => change(it.id, "order", v)}
                       onBlur={() => flush(it.id)}
                     />
+                    {list === "shopping" && (
+                      <NoteInput label={`${it.name}: opis`} caption="Opis" value={d.note} placeholder="np. marka, uwagi" onChange={(v) => change(it.id, "note", v)} onBlur={() => flush(it.id)} />
+                    )}
                   </li>
                 );
               })}
@@ -225,12 +251,13 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
         </Card>
       )}
 
-      <div className="sticky bottom-16 z-20 mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface/95 p-3 shadow-lg backdrop-blur md:bottom-4">
-        <p className="mr-auto text-sm">
+      <div className="sticky bottom-16 z-20 mt-4 flex items-center gap-2 rounded-xl border border-border bg-surface/95 p-3 shadow-lg backdrop-blur md:bottom-4">
+        <p className="mr-auto min-w-0 text-sm leading-tight">
           <span className="font-bold">{pendingLines.length}</span> {list === "shopping" ? "do kupienia" : "do zamówienia"}
         </p>
         <Button
           variant="secondary"
+          className="px-3"
           disabled={pendingLines.length === 0}
           onClick={() =>
             void copyOrShare(cfg.exportTitle, exportText(cfg.exportTitle, pendingLines)).then((r) =>
@@ -238,9 +265,10 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
             )
           }
         >
-          Kopiuj / wyślij
+          Wyślij
         </Button>
         <Button
+          className="px-3"
           loading={close.isPending}
           disabled={saving > 0}
           onClick={async () => {
@@ -273,6 +301,29 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
   );
 }
 
+function NoteInput(props: { label: string; caption: string; value: string; placeholder: string; highlight?: boolean; onChange: (v: string) => void; onBlur: () => void }) {
+  return (
+    <label className="flex min-w-0 flex-col gap-0.5">
+      <span className="text-[11px] font-medium text-muted">{props.caption}</span>
+      <input
+        aria-label={props.label}
+        data-step=""
+        enterKeyHint="next"
+        autoComplete="off"
+        maxLength={300}
+        value={props.value}
+        placeholder={props.placeholder}
+        onChange={(e) => props.onChange(e.target.value)}
+        onBlur={props.onBlur}
+        className={`h-11 w-full min-w-0 rounded-lg border bg-surface px-3 text-base placeholder:text-muted ${props.highlight ? "border-teal-500" : "border-border"}`}
+      />
+      <span className="text-[11px] text-transparent" aria-hidden="true">
+        .
+      </span>
+    </label>
+  );
+}
+
 function QtyInput(props: {
   label: string;
   caption: string;
@@ -290,6 +341,8 @@ function QtyInput(props: {
       <input
         aria-label={props.label}
         aria-invalid={props.bad || undefined}
+        data-step=""
+        enterKeyHint="next"
         inputMode="decimal"
         autoComplete="off"
         value={props.value}
@@ -334,7 +387,13 @@ function StockHistory({ list }: { list: StockList }) {
                 <ul className="mt-1 text-sm">
                   {s.lines.map((l, i) => (
                     <li key={i}>
-                      {l.name}: <strong>{fmtQty(l.qty)}</strong> {l.unit}
+                      {l.name}
+                      {l.qty > 0 && (
+                        <>
+                          : <strong>{fmtQty(l.qty)}</strong> {l.unit}
+                        </>
+                      )}
+                      {l.note && <span className="text-muted"> — {l.note}</span>}
                       {list === "wholesale" && l.qtyHave != null && <span className="text-muted"> (było {fmtQty(l.qtyHave)})</span>}
                     </li>
                   ))}
@@ -374,7 +433,9 @@ function StockManager({ list, items }: { list: StockList; items: StockItem[] }) 
           <Field label="Nazwa" error={add.fieldErrors?.name}>
             {(p) => <Input {...p} required maxLength={120} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />}
           </Field>
-          <Field label="Jednostka">{(p) => <Input {...p} maxLength={20} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />}</Field>
+          <Field label="Jednostka" hint="„opis” = zamiast liczby własny tekst">
+            {(p) => <Input {...p} list="stock-units" maxLength={20} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />}
+          </Field>
           <Field label="Grupa">
             {(p) => (
               <>
@@ -399,6 +460,11 @@ function StockManager({ list, items }: { list: StockList; items: StockItem[] }) 
         {add.error && !add.fieldErrors && <Alert tone="error">{add.error.message}</Alert>}
       </Card>
 
+      <datalist id="stock-units">
+        {UNIT_SUGGESTIONS.map((u) => (
+          <option key={u} value={u} />
+        ))}
+      </datalist>
       <Card title={`Pozycje (${items.length})`}>
         {items.length === 0 ? (
           <p className="text-sm text-muted">Brak pozycji.</p>
@@ -413,7 +479,7 @@ function StockManager({ list, items }: { list: StockList; items: StockItem[] }) 
 
       <Card title="Wklej wiele pozycji naraz">
         <p className="mb-2 text-sm text-muted">
-          Jedna pozycja w linii: <code>nazwa; jednostka; {list === "wholesale" ? "ile powinno być" : "(puste)"}; grupa</code>. Wystarczy sama nazwa. Duplikaty są pomijane.
+          Jedna pozycja w linii: <code>nazwa; jednostka; {list === "wholesale" ? "ile powinno być" : "(puste)"}; grupa</code>. Wystarczy sama nazwa. Jednostka „opis” = zamiast liczby wpisuje się własny tekst. Duplikaty są pomijane.
         </p>
         <Textarea
           aria-label="Lista pozycji do wklejenia"
@@ -454,7 +520,7 @@ function ManagedRow({ list, item }: { list: StockList; item: StockItem }) {
   return (
     <li className="grid grid-cols-2 gap-2 py-3 sm:grid-cols-[2fr_1fr_1.5fr_1fr_auto] sm:items-center">
       <Input aria-label="Nazwa" className="col-span-2 sm:col-span-1" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} onBlur={() => v.name.trim() && v.name !== item.name && commit({ name: v.name })} />
-      <Input aria-label={`${item.name}: jednostka`} value={v.unit} onChange={(e) => setV({ ...v, unit: e.target.value })} onBlur={() => v.unit !== item.unit && commit({ unit: v.unit })} />
+      <Input aria-label={`${item.name}: jednostka`} list="stock-units" value={v.unit} onChange={(e) => setV({ ...v, unit: e.target.value })} onBlur={() => v.unit !== item.unit && commit({ unit: v.unit })} />
       <Input aria-label={`${item.name}: grupa`} placeholder="Grupa" value={v.groupName} onChange={(e) => setV({ ...v, groupName: e.target.value })} onBlur={() => v.groupName !== item.groupName && commit({ groupName: v.groupName })} />
       {list === "wholesale" ? (
         <Input

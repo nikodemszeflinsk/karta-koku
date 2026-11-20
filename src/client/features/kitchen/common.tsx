@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { KitchenSummary } from "../../../shared/kitchen";
 import { apiFetch } from "../../lib/api";
@@ -76,4 +76,91 @@ export async function copyOrShare(title: string, text: string): Promise<"shared"
   } catch {
     return "failed";
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Field stepper: on phones, a bar docked above the on-screen keyboard with
+ * previous / next buttons, so you can move between quantity fields without
+ * closing the keyboard. Inputs opt in with `data-step`. Enter also moves on.
+ * ------------------------------------------------------------------------- */
+
+function stepFields(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>("[data-step]")].filter((el) => el.offsetParent !== null && !(el as HTMLInputElement).disabled);
+}
+
+function focusField(el: HTMLElement) {
+  el.focus({ preventScroll: true });
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (el instanceof HTMLInputElement) el.select();
+}
+
+export function StepNav() {
+  const [active, setActive] = useState<HTMLElement | null>(null);
+  const [bottom, setBottom] = useState<number | null>(null);
+  const [coarse] = useState(() => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
+
+  useEffect(() => {
+    const pick = () => {
+      const a = document.activeElement as HTMLElement | null;
+      setActive(a?.matches?.("[data-step]") ? a : null);
+    };
+    const onOut = () => setTimeout(pick, 0);
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key !== "Enter" || !(t instanceof HTMLInputElement) || !t.matches("[data-step]")) return;
+      e.preventDefault();
+      const f = stepFields();
+      const next = f[f.indexOf(t) + 1];
+      if (next) focusField(next);
+      else t.blur();
+    };
+    document.addEventListener("focusin", pick);
+    document.addEventListener("focusout", onOut);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("focusin", pick);
+      document.removeEventListener("focusout", onOut);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!active || !coarse) return;
+    const vv = window.visualViewport;
+    // Bottom edge of the visible area (above the keyboard), in layout-viewport coordinates.
+    const place = () => setBottom(vv ? vv.offsetTop + vv.height : window.innerHeight);
+    place();
+    vv?.addEventListener("resize", place);
+    vv?.addEventListener("scroll", place);
+    return () => {
+      vv?.removeEventListener("resize", place);
+      vv?.removeEventListener("scroll", place);
+    };
+  }, [active, coarse]);
+
+  if (!coarse || !active || bottom === null) return null;
+  const f = stepFields();
+  const i = f.indexOf(active);
+  // preventDefault on pointerdown keeps focus (and the keyboard) on the current field.
+  const keep = (e: { preventDefault: () => void }) => e.preventDefault();
+  const btn = "min-h-11 rounded-lg px-3 text-sm font-semibold disabled:opacity-40";
+  return (
+    <div
+      role="toolbar"
+      aria-label="Przechodzenie między polami"
+      className="fixed inset-x-0 z-50 flex items-center gap-2 border-t border-border bg-surface px-2 py-1.5 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]"
+      style={{ top: bottom, transform: "translateY(-100%)" }}
+    >
+      <button type="button" className={`${btn} bg-surface-2`} disabled={i <= 0} onPointerDown={keep} onMouseDown={keep} onClick={() => f[i - 1] && focusField(f[i - 1]!)}>
+        ↑ Poprz.
+      </button>
+      <button type="button" className={`${btn} bg-accent text-accent-fg`} disabled={i < 0 || i >= f.length - 1} onPointerDown={keep} onMouseDown={keep} onClick={() => f[i + 1] && focusField(f[i + 1]!)}>
+        Następne ↓
+      </button>
+      <span className="min-w-0 flex-1 truncate text-right text-xs text-muted">{active.getAttribute("aria-label")}</span>
+      <button type="button" className={`${btn} text-accent`} onPointerDown={keep} onMouseDown={keep} onClick={() => active.blur()}>
+        Gotowe
+      </button>
+    </div>
+  );
 }
