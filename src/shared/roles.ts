@@ -1,3 +1,6 @@
+/** Shared account used when OPEN_ACCESS is on (no sign-in). Can never log in: it has no password. */
+export const GUEST_USER_ID = "guest";
+
 export const ROLE_KEYS = ["owner", "admin", "trainer", "learner"] as const;
 export type RoleKey = (typeof ROLE_KEYS)[number];
 

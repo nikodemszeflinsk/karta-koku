@@ -4,6 +4,7 @@ import type { NextLessons } from "../../../shared/learning";
 import { Alert, Card, EmptyState, PageHeader, Spinner } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { useDashboard } from "../../lib/queries";
+import { InstallBanner } from "../install/InstallPage";
 import { useKitchenSummary } from "../kitchen/common";
 import { Bar, useProgress } from "../learning/ProgressPage";
 
@@ -25,6 +26,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader title={`Cześć, ${d.greetingName}`} subtitle={today} />
+      <InstallBanner />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Kontynuuj naukę" className="lg:col-span-2">

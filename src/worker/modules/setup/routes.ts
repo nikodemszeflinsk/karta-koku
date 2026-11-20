@@ -1,5 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
-import { count } from "drizzle-orm";
+import { count, ne } from "drizzle-orm";
+import { GUEST_USER_ID } from "../../../shared/roles";
 import { Hono } from "hono";
 import { ownerSetupSchema } from "../../../shared/schemas";
 import { safeStringEqual } from "../../auth/password";
@@ -14,7 +15,7 @@ import type { AppEnv } from "../../types";
  */
 export const setupRoutes = new Hono<AppEnv>()
   .get("/status", async (c) => {
-    const [row] = await c.var.db.select({ n: count() }).from(users);
+    const [row] = await c.var.db.select({ n: count() }).from(users).where(ne(users.id, GUEST_USER_ID));
     return c.json({ needsSetup: (row?.n ?? 0) === 0, setupEnabled: Boolean(c.env.SETUP_TOKEN) });
   })
   .post("/owner", zValidator("json", ownerSetupSchema, validationHook), async (c) => {
@@ -23,7 +24,7 @@ export const setupRoutes = new Hono<AppEnv>()
       return c.json({ error: { code: "invalid_setup_token", message: "Nieprawidłowy token konfiguracji." } }, 403);
     }
     const db = c.var.db;
-    const [row] = await db.select({ n: count() }).from(users);
+    const [row] = await db.select({ n: count() }).from(users).where(ne(users.id, GUEST_USER_ID));
     if ((row?.n ?? 0) > 0) {
       return c.json({ error: { code: "already_configured", message: "Konto właściciela już istnieje." } }, 409);
     }

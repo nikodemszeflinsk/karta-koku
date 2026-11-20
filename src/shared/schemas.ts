@@ -32,6 +32,8 @@ export const roleKeySchema = z.enum(ROLE_KEYS);
 
 export interface MeResponse {
   user: { id: string; name: string; email: string };
+  /** True for the shared no-login prototype account. */
+  guest?: boolean;
   roles: { role: (typeof ROLE_KEYS)[number]; locationId: string | null }[];
   profile: {
     displayName: string | null;

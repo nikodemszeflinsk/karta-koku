@@ -28,6 +28,7 @@ import {
   type StockSheetSummaryLine,
   type TemperatureRow,
 } from "../../../shared/kitchen";
+import { GUEST_USER_ID } from "../../../shared/roles";
 import { foldText } from "../../../shared/text";
 import type { Db } from "../../db/client";
 import { coldUnits, handoverChecks, pestChecks, shiftHandovers, stockItems, stockSheetLines, stockSheets, temperatureLogs, users } from "../../db/schema";
@@ -264,7 +265,14 @@ const handoverRoutes = new Hono<AppEnv>()
   .post("/", zValidator("json", handoverInputSchema, validationHook), async (c) => {
     const input = c.req.valid("json");
     const id = crypto.randomUUID();
-    await c.var.db.insert(shiftHandovers).values({ id, ...input, failureNote: input.hasFailure ? input.failureNote : "Brak", authorId: c.var.user!.id });
+    const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Warsaw", hour: "numeric", hourCycle: "h23" }).format(new Date()));
+    await c.var.db.insert(shiftHandovers).values({
+      id,
+      ...input,
+      shift: input.shift ?? (hour < 16 ? "morning" : "evening"),
+      failureNote: input.hasFailure ? input.failureNote : "Brak",
+      authorId: c.var.user!.id,
+    });
     return c.json({ id }, 201);
   })
   .post("/:id/ack", async (c) => {
@@ -272,7 +280,7 @@ const handoverRoutes = new Hono<AppEnv>()
     const userId = c.var.user!.id;
     const [h] = await db.select().from(shiftHandovers).where(eq(shiftHandovers.id, c.req.param("id")));
     if (!h) notFound("Nie znaleziono protokołu.");
-    if (h.authorId === userId) throw new HttpError(409, "own_handover", "Protokół potwierdza osoba przejmująca zmianę.");
+    if (h.authorId === userId && userId !== GUEST_USER_ID) throw new HttpError(409, "own_handover", "Protokół potwierdza osoba przejmująca zmianę.");
     if (h.acknowledgedAt) throw new HttpError(409, "already_acknowledged", "Zmiana została już przejęta.");
     await db.update(shiftHandovers).set({ acknowledgedBy: userId, acknowledgedAt: new Date() }).where(eq(shiftHandovers.id, h.id));
     return c.json({ ok: true });
@@ -416,7 +424,7 @@ export const kitchenRoutes = new Hono<AppEnv>()
       wholesale: { items: wholesale.items, toOrder: wholesale.pending },
       handover: {
         last: last
-          ? { shiftDate: last.shiftDate, shift: last.shift, hasFailure: last.hasFailure, shortages: last.shortages.length, acknowledged: last.acknowledgedAt !== null }
+          ? { shiftDate: last.shiftDate, shift: last.shift, hasFailure: last.hasFailure, shortages: last.shortages.length + (last.shortagesNote ? 1 : 0), acknowledged: last.acknowledgedAt !== null }
           : null,
       },
       haccp: {

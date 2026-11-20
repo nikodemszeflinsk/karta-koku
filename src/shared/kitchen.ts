@@ -40,7 +40,8 @@ export const stockLineSchema = z.object({ qtyHave: qty.optional(), qtyOrder: qty
 export const handoverInputSchema = z
   .object({
     shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Nieprawidłowa data"),
-    shift: z.enum(SHIFTS),
+    /** No longer asked in the form; the server fills it from the time of day. */
+    shift: z.enum(SHIFTS).optional(),
     prep: z.array(z.object({ label: z.string().trim().min(1).max(120), done: z.boolean() })).max(60),
     prepNotes: z.string().trim().max(4000).default(""),
     shortages: z.array(z.object({ menuItemId: z.string().max(100).nullable(), name: z.string().trim().min(1).max(160) })).max(200),

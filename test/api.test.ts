@@ -40,7 +40,7 @@ describe("public endpoints and security baseline", () => {
       body: { email: "stranger@example.test", password: "some long password 1", name: "Stranger" },
     });
     expect(res.ok).toBe(false);
-    const n = await env.DB.prepare("SELECT count(*) AS n FROM users").first<{ n: number }>();
+    const n = await env.DB.prepare("SELECT count(*) AS n FROM users WHERE id <> 'guest'").first<{ n: number }>();
     expect(n?.n).toBe(0);
   });
 });

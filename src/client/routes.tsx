@@ -5,6 +5,8 @@ import { SetupPage } from "./features/auth/SetupPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { AppLayout, MorePage, NotFoundPage, RequireAuth } from "./features/layout/AppLayout";
 import { VaultProvider } from "./features/vault/vault-context";
+import { StartPage } from "./features/kitchen/StartPage";
+import { EDUCATION_ENABLED } from "./features/layout/nav";
 
 /** Code-split route: the page's module is downloaded on first visit. */
 function lazy<M>(load: () => Promise<M>, pick: (m: M) => ComponentType): Pick<RouteObject, "lazy"> {
@@ -24,7 +26,7 @@ export const routes: RouteObject[] = [
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
+      { index: true, element: EDUCATION_ENABLED ? <DashboardPage /> : <StartPage /> },
       { path: "kuchnia", ...lazy(() => import("./features/kitchen/KitchenPage"), (m) => m.KitchenPage) },
       { path: "kuchnia/zakupy", ...lazy(() => import("./features/kitchen/StockPage"), (m) => m.ShoppingPage) },
       { path: "kuchnia/hurtownia", ...lazy(() => import("./features/kitchen/StockPage"), (m) => m.WholesalePage) },
@@ -57,6 +59,7 @@ export const routes: RouteObject[] = [
       { path: "zrodla", ...lazy(() => import("./features/sources/SourcesPage"), (m) => m.SourcesPage) },
       { path: "zespol", ...lazy(() => import("./features/team/TeamPage"), (m) => m.TeamPage) },
       { path: "wiecej", element: <MorePage /> },
+      { path: "instalacja", ...lazy(() => import("./features/install/InstallPage"), (m) => m.InstallPage) },
       { path: "ustawienia", ...lazy(() => import("./features/settings/SettingsPage"), (m) => m.SettingsPage) },
       { path: "*", element: <NotFoundPage /> },
     ],

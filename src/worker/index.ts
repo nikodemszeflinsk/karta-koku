@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HttpError } from "./lib/errors";
 import { originCheck, securityHeaders } from "./middleware/security";
-import { context, loadSession } from "./middleware/session";
+import { context, guestAccess, loadSession } from "./middleware/session";
 import { aiRoutes } from "./modules/ai/routes";
 import { kitchenRoutes } from "./modules/kitchen/routes";
 import { learningRoutes } from "./modules/learning/routes";
@@ -33,6 +33,8 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.on(["GET", "POST"], "/auth/*", (c) => c.var.auth.handler(c.req.raw));
 
 app.use("*", loadSession);
+app.use("/kitchen/*", guestAccess);
+app.use("/me", guestAccess);
 app.route("/setup", setupRoutes);
 // Invitation acceptance works without a session (the invitee has no account yet).
 app.route("/invitations", invitePublicRoutes);

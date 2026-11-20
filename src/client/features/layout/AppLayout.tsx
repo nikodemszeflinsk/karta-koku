@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router";
-import { Icon, isActive, MOBILE_NAV, NAV_GROUPS, TONE, type NavGroup, type NavItem, type Tone } from "./nav";
+import { EDUCATION_ENABLED, HOME_LABEL, Icon, isActive, MOBILE_NAV, NAV_GROUPS, TONE, type NavGroup, type NavItem, type Tone } from "./nav";
 import { highestRole, ROLE_LABELS } from "../../../shared/roles";
 import { Alert, EmptyState, PageHeader, Spinner } from "../../components/ui";
 import { applyTheme } from "../../lib/theme";
@@ -9,7 +9,10 @@ import { useMe } from "../../lib/queries";
 function useNavGroups(): NavGroup[] {
   const me = useMe();
   const staff = Boolean(me.data?.roles.some((r) => r.role === "owner" || r.role === "admin" || r.role === "trainer"));
-  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => !n.staff || staff) })).filter((g) => g.items.length > 0);
+  const guest = Boolean(me.data?.guest);
+  // The shared no-login account sees only the kitchen and the home-screen helper.
+  const guestHidden = new Set(["/zespol", "/ustawienia"]);
+  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => (!n.staff || staff) && !(guest && guestHidden.has(n.to))) })).filter((g) => g.items.length > 0);
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -75,6 +78,7 @@ export function AppLayout() {
           <img src="/favicon.svg" alt="" className="size-8" />
           Sushi Chef Lab
         </Link>
+        {EDUCATION_ENABLED && (
         <div className="px-3 pb-2">
           <Link
             to="/szukaj"
@@ -84,9 +88,10 @@ export function AppLayout() {
             Szukaj w aplikacji…
           </Link>
         </div>
+        )}
         <nav aria-label="Główna nawigacja" className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
           <div>
-            <SidebarLink item={{ to: "/", label: "Pulpit", icon: "home" }} tone="account" />
+            <SidebarLink item={{ to: "/", label: HOME_LABEL, icon: "home" }} tone="account" />
           </div>
           {groups.map((g) => (
             <div key={g.key}>
@@ -104,7 +109,16 @@ export function AppLayout() {
             </div>
           ))}
         </nav>
-        {me.data && (
+        {me.data?.guest && (
+          <Link to="/login" className="flex items-center gap-3 border-t border-border px-4 py-3 hover:bg-surface-2">
+            <span className="grid size-9 place-items-center rounded-full bg-surface-2 text-sm font-bold text-muted">G</span>
+            <span className="min-w-0 text-xs text-muted">
+              <span className="block text-sm font-medium text-fg">Bez logowania</span>
+              Zaloguj się
+            </span>
+          </Link>
+        )}
+        {me.data && !me.data.guest && (
           <Link to="/ustawienia" className="flex items-center gap-3 border-t border-border px-4 py-3 hover:bg-surface-2">
             <span className="grid size-9 place-items-center rounded-full bg-accent text-sm font-bold text-accent-fg">{initials(name)}</span>
             <span className="min-w-0 text-xs text-muted">
@@ -120,9 +134,11 @@ export function AppLayout() {
           <img src="/favicon.svg" alt="" className="size-7" />
           Sushi Chef Lab
         </Link>
-        <Link to="/szukaj" aria-label="Szukaj" className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
-          <Icon name="search" />
-        </Link>
+        {EDUCATION_ENABLED && (
+          <Link to="/szukaj" aria-label="Szukaj" className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
+            <Icon name="search" />
+          </Link>
+        )}
       </header>
 
       <main id="main" className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 pb-28 pt-5 sm:px-6 md:pb-10 md:pt-8 print:max-w-none print:p-0">
@@ -159,9 +175,18 @@ function initials(name: string): string {
 /** Tile grid used by the mobile "Menu" page. */
 export function MorePage() {
   const groups = useNavGroups();
+  const guest = Boolean(useMe().data?.guest);
   return (
     <>
       <PageHeader title="Menu" subtitle="Wszystkie sekcje aplikacji" />
+      {guest && (
+        <p className="mb-4 text-sm text-muted">
+          Tryb bez logowania (prototyp).{" "}
+          <Link to="/login" className="font-semibold text-accent underline">
+            Zaloguj się
+          </Link>
+        </p>
+      )}
       <div className="grid gap-6">
         {groups.map((g) => (
           <section key={g.key} aria-labelledby={`grp-${g.key}`}>

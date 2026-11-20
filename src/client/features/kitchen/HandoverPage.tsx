@@ -1,36 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
-import { SHIFT_LABELS, SHIFTS, warsawDate, type HandoverRow, type Shift } from "../../../shared/kitchen";
-import type { MenuItemSummary, MenuVersion } from "../../../shared/knowledge";
-import { Textarea, useCanEdit } from "../../components/knowledge";
-import { Alert, Button, Card, EmptyState, Field, Input, Select, Spinner } from "../../components/ui";
+import { useRef, useState, type ReactNode } from "react";
+import { warsawDate, type HandoverRow } from "../../../shared/kitchen";
+import { Textarea } from "../../components/knowledge";
+import { Alert, Button, Card, EmptyState, Field, Input, Spinner } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { useMe } from "../../lib/queries";
 import { useApiMutation } from "../../lib/use-api-mutation";
-import { foldText } from "../../../shared/text";
 import { fmtDate, fmtDateTime, KitchenHeader, kk } from "./common";
 
-type Shortage = { menuItemId: string | null; name: string };
-
-function useChecks() {
-  return useQuery({ queryKey: kk.checks, queryFn: async () => (await apiFetch<{ checks: { id: string; label: string }[] }>("/api/kitchen/handovers/checks")).checks });
-}
-
-/** Items of the current menu version (Karta KOKU), for picking shortages. */
-function useCurrentMenuItems() {
-  return useQuery({
-    queryKey: ["menu", "current-items"],
-    queryFn: async () => {
-      const { versions } = await apiFetch<{ versions: MenuVersion[] }>("/api/menu/versions");
-      const cur = versions.find((v) => v.isCurrent) ?? versions[0];
-      if (!cur) return [];
-      return (await apiFetch<{ items: MenuItemSummary[] }>(`/api/menu/versions/${cur.id}/items`)).items;
-    },
-    staleTime: 10 * 60_000,
-  });
-}
-
-const defaultShift = (): Shift => (Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Warsaw", hour: "numeric", hourCycle: "h23" }).format(new Date())) < 16 ? "morning" : "evening");
+/*
+ * Shift handover protocol:
+ *  1. "Do uzupełnienia" — a plain list typed by the person handing over,
+ *  2. "Braki w karcie" — Brak (default) or a description,
+ *  3. "Awarie" — Brak (default) or a description.
+ * Storage: items → prep[{label, done:false}], shortages → shortagesNote, failures → failureNote.
+ */
 
 export function HandoverPage() {
   const q = useQuery({ queryKey: kk.handovers, queryFn: async () => (await apiFetch<{ handovers: HandoverRow[] }>("/api/kitchen/handovers")).handovers });
@@ -39,7 +23,7 @@ export function HandoverPage() {
   const latest = q.data?.[0];
   return (
     <>
-      <KitchenHeader title="Przekazanie zmiany" subtitle="Przygotowanie do serwisu, braki w karcie i awarie" icon="handover" />
+      <KitchenHeader title="Przekazanie zmiany" subtitle="Do uzupełnienia, braki w karcie i awarie" icon="handover" />
       {latest && <HandoverCard h={latest} highlight />}
       {done && (
         <div className="my-4">
@@ -68,41 +52,39 @@ export function HandoverPage() {
   );
 }
 
-function HandoverCard({ h, highlight = false }: { h: HandoverRow; highlight?: boolean }) {
+function shortagesText(h: HandoverRow): string {
+  const parts = [...h.shortages.map((s) => s.name), h.shortagesNote].filter(Boolean);
+  return parts.length ? parts.join(", ") : "";
+}
+
+export function HandoverCard({ h, highlight = false, title: titleOverride }: { h: HandoverRow; highlight?: boolean; title?: string }) {
   const me = useMe();
   const ack = useApiMutation(() => ({ path: `/api/kitchen/handovers/${h.id}/ack`, body: {} }), [kk.handovers, kk.summary]);
-  const doneCount = h.prep.filter((p) => p.done).length;
-  const canAck = !h.acknowledgedAt && me.data && me.data.user.id !== h.authorId;
+  const todo = h.prep.filter((p) => !p.done);
+  const shortages = shortagesText(h);
+  const canAck = !h.acknowledgedAt && me.data && (me.data.guest || me.data.user.id !== h.authorId);
   const body = (
     <div className="grid gap-3 text-sm">
-      <div className="flex flex-wrap gap-2">
-        <Badge tone={doneCount === h.prep.length ? "ok" : "warn"}>
-          Przygotowanie {doneCount}/{h.prep.length}
-        </Badge>
-        <Badge tone={h.shortages.length ? "warn" : "ok"}>{h.shortages.length ? `Braki: ${h.shortages.length}` : "Bez braków"}</Badge>
-        <Badge tone={h.hasFailure ? "danger" : "ok"}>{h.hasFailure ? "Awaria" : "Awarie: brak"}</Badge>
-      </div>
-      {h.prep.some((p) => !p.done) && (
-        <div>
-          <p className="font-semibold">Nie zrobione:</p>
+      <div>
+        <p className="font-semibold">Do uzupełnienia:</p>
+        {todo.length ? (
           <ul className="list-disc pl-5">
-            {h.prep.filter((p) => !p.done).map((p) => (
-              <li key={p.label}>{p.label}</li>
+            {todo.map((p, i) => (
+              <li key={i}>{p.label}</li>
             ))}
           </ul>
-        </div>
-      )}
-      {h.prepNotes && <p className="whitespace-pre-wrap"><span className="font-semibold">Uwagi: </span>{h.prepNotes}</p>}
-      {h.shortages.length > 0 && (
-        <div>
-          <p className="font-semibold">Braki w karcie:</p>
-          <p>{h.shortages.map((s) => s.name).join(", ")}</p>
-        </div>
-      )}
-      {h.shortagesNote && <p className="whitespace-pre-wrap">{h.shortagesNote}</p>}
+        ) : (
+          <p className="text-muted">Nic</p>
+        )}
+        {h.prepNotes && <p className="mt-1 whitespace-pre-wrap">{h.prepNotes}</p>}
+      </div>
+      <p className={shortages ? "font-semibold text-warn" : ""}>
+        <span className="font-semibold text-fg">Braki w karcie: </span>
+        {shortages || "Brak"}
+      </p>
       <p className={h.hasFailure ? "font-semibold text-danger" : ""}>
-        <span className="font-semibold">Awarie: </span>
-        {h.failureNote || "Brak"}
+        <span className="font-semibold text-fg">Awarie: </span>
+        {h.hasFailure ? h.failureNote : "Brak"}
       </p>
       <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3 text-xs text-muted">
         <span>
@@ -123,10 +105,10 @@ function HandoverCard({ h, highlight = false }: { h: HandoverRow; highlight?: bo
       {ack.error && <Alert tone="error">{ack.error.message}</Alert>}
     </div>
   );
-  const title = `${fmtDate(h.shiftDate)} · ${SHIFT_LABELS[h.shift]}`;
+  const title = fmtDate(h.shiftDate);
   if (highlight) {
     return (
-      <Card title={`Ostatnie przekazanie: ${title}`} className="mb-4 border-teal-500/50">
+      <Card title={titleOverride ?? `Ostatnie przekazanie: ${title}`} className="mb-4 border-teal-500/50">
         {body}
       </Card>
     );
@@ -134,7 +116,8 @@ function HandoverCard({ h, highlight = false }: { h: HandoverRow; highlight?: bo
   return (
     <details className="rounded-xl border border-border bg-surface">
       <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-2 px-4 text-sm font-semibold">
-        {title}
+        {title} <span className="font-normal text-muted">{fmtDateTime(h.createdAt).split(", ")[1]}</span>
+        {shortages && <Badge tone="warn">Braki</Badge>}
         {h.hasFailure && <Badge tone="danger">Awaria</Badge>}
         {!h.acknowledgedAt && <Badge tone="warn">Nieprzejęta</Badge>}
       </summary>
@@ -143,40 +126,52 @@ function HandoverCard({ h, highlight = false }: { h: HandoverRow; highlight?: bo
   );
 }
 
-function Badge({ tone, children }: { tone: "ok" | "warn" | "danger"; children: ReactNode }) {
-  const c = { ok: "bg-ok/10 text-ok", warn: "bg-warn/15 text-warn", danger: "bg-danger/10 text-danger" }[tone];
+function Badge({ tone, children }: { tone: "warn" | "danger"; children: ReactNode }) {
+  const c = { warn: "bg-warn/15 text-warn", danger: "bg-danger/10 text-danger" }[tone];
   return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${c}`}>{children}</span>;
 }
 
+/** Brak (default) / Są — with a description when present. */
+function YesNoText(props: { name: string; yesLabel: string; on: boolean; setOn: (v: boolean) => void; text: string; setText: (v: string) => void; label: string; error?: string | undefined }) {
+  return (
+    <>
+      <fieldset className="grid gap-1">
+        <legend className="sr-only">{props.name}</legend>
+        <label className="flex min-h-11 items-center gap-3">
+          <input type="radio" name={props.name} className="size-5 accent-[var(--color-accent)]" checked={!props.on} onChange={() => props.setOn(false)} />
+          Brak
+        </label>
+        <label className="flex min-h-11 items-center gap-3">
+          <input type="radio" name={props.name} className="size-5 accent-[var(--color-accent)]" checked={props.on} onChange={() => props.setOn(true)} />
+          {props.yesLabel}
+        </label>
+      </fieldset>
+      {props.on && (
+        <div className="mt-2">
+          <Field label={props.label} error={props.error}>
+            {(p) => <Textarea {...p} rows={3} required maxLength={4000} value={props.text} onChange={(e) => props.setText(e.target.value)} />}
+          </Field>
+        </div>
+      )}
+    </>
+  );
+}
+
 function HandoverForm({ onSaved }: { onSaved: () => void }) {
-  const checks = useChecks();
-  const menu = useCurrentMenuItems();
-  const canEdit = useCanEdit();
-  const [editChecks, setEditChecks] = useState(false);
   const [shiftDate, setShiftDate] = useState(warsawDate());
-  const [shift, setShift] = useState<Shift>(defaultShift());
-  const [done, setDone] = useState<Record<string, boolean>>({});
-  const [prepNotes, setPrepNotes] = useState("");
-  const [shortages, setShortages] = useState<Shortage[]>([]);
-  const [search, setSearch] = useState("");
+  const [items, setItems] = useState<string[]>([""]);
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const [hasShortages, setHasShortages] = useState(false);
   const [shortagesNote, setShortagesNote] = useState("");
   const [hasFailure, setHasFailure] = useState(false);
   const [failureNote, setFailureNote] = useState("");
   const save = useApiMutation((b: unknown) => ({ path: "/api/kitchen/handovers", body: b }), [kk.handovers, kk.summary]);
 
-  const matches = useMemo(() => {
-    const f = foldText(search);
-    if (f.length < 2 || !menu.data) return [];
-    const taken = new Set(shortages.map((s) => s.menuItemId));
-    return menu.data.filter((m) => !taken.has(m.id) && (foldText(m.name).includes(f) || (m.code ?? "") === search.trim())).slice(0, 8);
-  }, [search, menu.data, shortages]);
-
-  const addShortage = (s: Shortage) => {
-    if (!shortages.some((x) => x.name.toLowerCase() === s.name.toLowerCase())) setShortages([...shortages, s]);
-    setSearch("");
+  const addAfter = (i: number) => {
+    const next = [...items.slice(0, i + 1), "", ...items.slice(i + 1)];
+    setItems(next);
+    setTimeout(() => refs.current[i + 1]?.focus(), 0);
   };
-
-  if (editChecks) return <ChecksEditor labels={checks.data?.map((c) => c.label) ?? []} onDone={() => setEditChecks(false)} />;
 
   return (
     <form
@@ -185,11 +180,10 @@ function HandoverForm({ onSaved }: { onSaved: () => void }) {
         e.preventDefault();
         const r = await save.submit({
           shiftDate,
-          shift,
-          prep: (checks.data ?? []).map((c) => ({ label: c.label, done: Boolean(done[c.id]) })),
-          prepNotes,
-          shortages,
-          shortagesNote,
+          prep: items.map((l) => l.trim()).filter(Boolean).map((label) => ({ label, done: false })),
+          prepNotes: "",
+          shortages: [],
+          shortagesNote: hasShortages ? shortagesNote : "",
           hasFailure,
           failureNote: hasFailure ? failureNote : "",
         });
@@ -197,132 +191,65 @@ function HandoverForm({ onSaved }: { onSaved: () => void }) {
       }}
     >
       <Card title="Nowy protokół">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Data" error={save.fieldErrors?.shiftDate}>
-            {(p) => <Input {...p} type="date" required value={shiftDate} onChange={(e) => setShiftDate(e.target.value)} />}
-          </Field>
-          <Field label="Zmiana">
-            {(p) => (
-              <Select {...p} value={shift} onChange={(e) => setShift(e.target.value as Shift)}>
-                {SHIFTS.map((s) => (
-                  <option key={s} value={s}>
-                    {SHIFT_LABELS[s]}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-        </div>
+        <Field label="Data" error={save.fieldErrors?.shiftDate}>
+          {(p) => <Input {...p} type="date" required value={shiftDate} onChange={(e) => setShiftDate(e.target.value)} className="sm:w-60" />}
+        </Field>
       </Card>
 
-      <Card
-        title="1. Przygotowanie do serwisu"
-        action={
-          canEdit && (
-            <Button type="button" variant="ghost" className="min-h-9 px-2 text-xs" onClick={() => setEditChecks(true)}>
-              Edytuj listę
-            </Button>
-          )
-        }
-      >
-        {checks.isPending && <Spinner small />}
-        <ul className="grid gap-1">
-          {checks.data?.map((c) => (
-            <li key={c.id}>
-              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-surface-2">
-                <input type="checkbox" className="size-5 shrink-0 accent-[var(--color-accent)]" checked={Boolean(done[c.id])} onChange={(e) => setDone({ ...done, [c.id]: e.target.checked })} />
-                <span className={done[c.id] ? "text-muted line-through" : ""}>{c.label}</span>
-              </label>
+      <Card title="1. Do uzupełnienia">
+        <ul className="grid gap-2">
+          {items.map((v, i) => (
+            <li key={i} className="flex items-center gap-2">
+              <span className="w-5 shrink-0 text-right text-sm text-muted">{i + 1}.</span>
+              <Input
+                ref={(el) => {
+                  refs.current[i] = el;
+                }}
+                aria-label={`Do uzupełnienia, pozycja ${i + 1}`}
+                value={v}
+                maxLength={120}
+                enterKeyHint="next"
+                onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (v.trim()) addAfter(i);
+                  }
+                }}
+              />
+              {items.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={`Usuń pozycję ${i + 1}`}
+                  className="grid size-11 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2"
+                  onClick={() => setItems(items.filter((_, j) => j !== i))}
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
-        {checks.data && (
-          <button
-            type="button"
-            className="mt-1 px-2 text-xs font-semibold text-accent"
-            onClick={() => setDone(Object.fromEntries(checks.data.map((c) => [c.id, true])))}
-          >
-            Zaznacz wszystko
-          </button>
-        )}
-        <div className="mt-3">
-          <Field label="Uwagi do przygotowania" hint="Co jest niedokończone, czego jest mało, co trzeba zrobić na początku zmiany.">
-            {(p) => <Textarea {...p} rows={3} maxLength={4000} value={prepNotes} onChange={(e) => setPrepNotes(e.target.value)} />}
-          </Field>
-        </div>
+        <Button type="button" variant="ghost" className="mt-2 text-accent" onClick={() => addAfter(items.length - 1)}>
+          + Dodaj pozycję
+        </Button>
       </Card>
 
       <Card title="2. Braki w karcie">
-        <Field label="Dodaj pozycję z karty" hint="Wpisz nazwę lub numer. Możesz też dodać coś spoza karty.">
-          {(p) => (
-            <Input
-              {...p}
-              value={search}
-              autoComplete="off"
-              placeholder="np. futomaki, 12"
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (matches[0]) addShortage({ menuItemId: matches[0].id, name: matches[0].name });
-                  else if (search.trim()) addShortage({ menuItemId: null, name: search.trim() });
-                }
-              }}
-            />
-          )}
-        </Field>
-        {search.trim().length >= 2 && (
-          <ul className="mt-2 overflow-hidden rounded-lg border border-border">
-            {matches.map((m) => (
-              <li key={m.id}>
-                <button type="button" className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-2" onClick={() => addShortage({ menuItemId: m.id, name: m.name })}>
-                  {m.code && <span className="text-xs text-muted">{m.code}.</span>}
-                  {m.name}
-                </button>
-              </li>
-            ))}
-            <li>
-              <button type="button" className="flex min-h-11 w-full items-center px-3 text-left text-sm font-semibold text-accent hover:bg-surface-2" onClick={() => addShortage({ menuItemId: null, name: search.trim() })}>
-                + Dodaj „{search.trim()}”
-              </button>
-            </li>
-          </ul>
-        )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {shortages.length === 0 && <p className="text-sm text-muted">Brak braków — wszystko z karty jest dostępne.</p>}
-          {shortages.map((s) => (
-            <span key={s.name} className="inline-flex items-center gap-1 rounded-full bg-warn/15 py-1 pl-3 pr-1 text-sm font-medium">
-              {s.name}
-              <button type="button" aria-label={`Usuń ${s.name}`} className="grid size-7 place-items-center rounded-full hover:bg-warn/25" onClick={() => setShortages(shortages.filter((x) => x !== s))}>
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="mt-3">
-          <Field label="Uwagi do braków">{(p) => <Textarea {...p} rows={2} maxLength={4000} value={shortagesNote} onChange={(e) => setShortagesNote(e.target.value)} />}</Field>
-        </div>
+        <YesNoText name="shortages" yesLabel="Są braki" on={hasShortages} setOn={setHasShortages} text={shortagesNote} setText={setShortagesNote} label="Czego brakuje w karcie" />
       </Card>
 
       <Card title="3. Awarie">
-        <fieldset className="grid gap-2">
-          <legend className="sr-only">Awarie</legend>
-          <label className="flex min-h-11 items-center gap-3">
-            <input type="radio" name="failure" className="size-5 accent-[var(--color-accent)]" checked={!hasFailure} onChange={() => setHasFailure(false)} />
-            Brak
-          </label>
-          <label className="flex min-h-11 items-center gap-3">
-            <input type="radio" name="failure" className="size-5 accent-[var(--color-accent)]" checked={hasFailure} onChange={() => setHasFailure(true)} />
-            Jest awaria
-          </label>
-        </fieldset>
-        {hasFailure && (
-          <div className="mt-2">
-            <Field label="Opis awarii" hint="Co nie działa, od kiedy, czy zgłoszono serwis." error={save.fieldErrors?.failureNote}>
-              {(p) => <Textarea {...p} rows={3} required maxLength={4000} value={failureNote} onChange={(e) => setFailureNote(e.target.value)} />}
-            </Field>
-          </div>
-        )}
+        <YesNoText
+          name="failure"
+          yesLabel="Jest awaria"
+          on={hasFailure}
+          setOn={setHasFailure}
+          text={failureNote}
+          setText={setFailureNote}
+          label="Opis awarii"
+          error={save.fieldErrors?.failureNote}
+        />
       </Card>
 
       {save.error && <Alert tone="error">{save.error.message}</Alert>}
@@ -330,32 +257,5 @@ function HandoverForm({ onSaved }: { onSaved: () => void }) {
         Zapisz protokół przekazania
       </Button>
     </form>
-  );
-}
-
-function ChecksEditor({ labels, onDone }: { labels: string[]; onDone: () => void }) {
-  const [text, setText] = useState(labels.join("\n"));
-  const save = useApiMutation((b: { labels: string[] }) => ({ path: "/api/kitchen/handovers/checks", method: "PUT", body: b }), [kk.checks]);
-  return (
-    <Card title="Lista kontrolna przygotowania">
-      <Field label="Jeden punkt w linii" hint="Zmiana nie wpływa na zapisane już protokoły.">
-        {(p) => <Textarea {...p} rows={10} value={text} onChange={(e) => setText(e.target.value)} />}
-      </Field>
-      {save.error && <Alert tone="error">{save.error.message}</Alert>}
-      <div className="mt-3 flex gap-2">
-        <Button
-          loading={save.isPending}
-          onClick={async () => {
-            const r = await save.submit({ labels: text.split("\n").map((l) => l.trim()).filter(Boolean) });
-            if (r) onDone();
-          }}
-        >
-          Zapisz listę
-        </Button>
-        <Button variant="ghost" onClick={onDone}>
-          Anuluj
-        </Button>
-      </div>
-    </Card>
   );
 }

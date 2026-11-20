@@ -149,6 +149,19 @@ describe("shift handover", () => {
     expect(sum.handover.last).toMatchObject({ acknowledged: true, shortages: 1, hasFailure: false });
   });
 
+  it("accepts the simple form: no shift, items to replenish, shortages as text", async () => {
+    const r = await api("/api/kitchen/handovers", {
+      cookie: learner,
+      body: { shiftDate: "2026-11-21", prep: [{ label: "Ryż", done: false }, { label: "Nori", done: false }], shortages: [], shortagesNote: "Brak węgorza", hasFailure: false },
+    });
+    expect(r.status).toBe(201);
+    const { handovers } = await json<{ handovers: HandoverRow[] }>(api("/api/kitchen/handovers", { cookie: owner }));
+    expect(handovers[0]).toMatchObject({ shiftDate: "2026-11-21", shortagesNote: "Brak węgorza", failureNote: "Brak", prep: [{ label: "Ryż" }, { label: "Nori" }] });
+    expect(["morning", "evening"]).toContain(handovers[0]!.shift);
+    const sum = await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }));
+    expect(sum.handover.last).toMatchObject({ shortages: 1, acknowledged: false });
+  });
+
   it("only managers edit the checklist", async () => {
     expect((await api("/api/kitchen/handovers/checks", { method: "PUT", cookie: learner, body: { labels: ["x"] } })).status).toBe(403);
     expect((await api("/api/kitchen/handovers/checks", { method: "PUT", cookie: owner, body: { labels: ["Ryż", "Ryby"] } })).status).toBe(200);

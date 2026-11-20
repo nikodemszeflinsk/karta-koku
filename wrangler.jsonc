@@ -21,6 +21,9 @@
   "vars": {
     // Production address. Local dev overrides it in .dev.vars (APP_URL=http://localhost:5173).
     "APP_URL": "https://sushi-chef-lab.nikodemszeflinsk.workers.dev",
+    // Prototype mode: the Kitchen section (lists, handover, HACCP) works without signing in,
+    // as a shared "Gość" account. Everything else still requires a login. Set to "false" to turn off.
+    "OPEN_ACCESS": "true",
     // AI coach. The API key is a secret (wrangler secret put ANTHROPIC_API_KEY); without it AI stays off.
     "AI_ENABLED": "true",
     "AI_MODEL": "claude-sonnet-5-5",

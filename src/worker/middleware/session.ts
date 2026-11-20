@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { MiddlewareHandler } from "hono";
-import { ROLE_KEYS, type RoleKey } from "../../shared/roles";
+import { GUEST_USER_ID, ROLE_KEYS, type RoleKey } from "../../shared/roles";
 import { createAuth } from "../auth/auth";
 import { getDb } from "../db/client";
 import { memberships } from "../db/schema";
@@ -28,6 +28,19 @@ export const loadSession: MiddlewareHandler<AppEnv> = async (c, next) => {
       "globalRoles",
       rows.map((r) => r.roleKey).filter((r): r is RoleKey => (ROLE_KEYS as readonly string[]).includes(r)),
     );
+  }
+  await next();
+};
+
+/**
+ * Prototype mode (OPEN_ACCESS="true"): requests without a session act as the shared guest
+ * account. Mounted only on the routes that should work without login (kitchen, /me).
+ * The guest manages kitchen catalogs (trainer-level), nothing else.
+ */
+export const guestAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!c.var.user && c.env.OPEN_ACCESS === "true") {
+    c.set("user", { id: GUEST_USER_ID, name: "Gość", email: "guest@guest.invalid" });
+    c.set("globalRoles", ["trainer"]);
   }
   await next();
 };

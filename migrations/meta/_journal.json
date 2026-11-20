@@ -71,6 +71,13 @@
       "when": 1795169525822,
       "tag": "0009_stock_line_note",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795169526822,
+      "tag": "0010_guest_user",
+      "breakpoints": true
     }
   ]
 }

@@ -39,7 +39,8 @@ export function LoginPage() {
 
   const from = (location.state as { from?: string } | null)?.from ?? "/";
 
-  if (me.data) return <Navigate to={from} replace />;
+  // The shared no-login guest may still sign in to a real account.
+  if (me.data && !me.data.guest) return <Navigate to={from} replace />;
   if (me.isPending) {
     return (
       <div className="grid min-h-dvh place-items-center">

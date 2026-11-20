@@ -1,4 +1,4 @@
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from "react";
 
 function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -68,7 +68,7 @@ export function Field({
 const inputClass =
   "min-h-11 w-full rounded-lg border border-border bg-surface px-3 text-base text-fg placeholder:text-muted aria-[invalid=true]:border-danger";
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+export function Input(props: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return <input {...props} className={cx(inputClass, props.className)} />;
 }
 

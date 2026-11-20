@@ -22,6 +22,7 @@ export const ICONS = {
   cart: "M3 4h2l2.4 11h10.2L20 8H6.2M9 20a1 1 0 100-2 1 1 0 000 2zM17 20a1 1 0 100-2 1 1 0 000 2z",
   truck: "M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 100-4 2 2 0 000 4zM17 19a2 2 0 100-4 2 2 0 000 4z",
   handover: "M9 5h6M9 3h6v4H9zM6 5H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1V6a1 1 0 00-1-1h-1M8 12h8M8 16h5",
+  phone: "M8 2h8a2 2 0 012 2v16a2 2 0 01-2 2H8a2 2 0 01-2-2V4a2 2 0 012-2zM11 18h2",
   thermo: "M14 14.8V5a2 2 0 10-4 0v9.8a4 4 0 104 0zM12 17v-5",
 } as const;
 export type IconName = keyof typeof ICONS;
@@ -59,7 +60,11 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-export const NAV_GROUPS: NavGroup[] = [
+/** Learning + knowledge sections are hidden for now (code kept; flip to bring them back). */
+export const EDUCATION_ENABLED = false;
+const EDUCATION_GROUPS = new Set(["learn", "know", "mine"]);
+
+const ALL_GROUPS: NavGroup[] = [
   {
     key: "kitchen",
     label: "Kuchnia",
@@ -110,17 +115,31 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/zespol", label: "Zespół", icon: "users", staff: true, hint: "Osoby i lokale" },
       { to: "/ustawienia", label: "Ustawienia", icon: "gear", hint: "Profil, motyw, passkey" },
+      { to: "/instalacja", label: "Ikona na ekranie", icon: "phone", hint: "Dodaj aplikację do telefonu" },
     ],
   },
 ];
 
-export const MOBILE_NAV: NavItem[] = [
-  { to: "/", label: "Pulpit", icon: "home" },
-  { to: "/kuchnia", label: "Kuchnia", icon: "pot" },
-  { to: "/akademia", label: "Nauka", icon: "book" },
-  { to: "/powtorki", label: "Powtórki", icon: "repeat" },
-  { to: "/wiecej", label: "Menu", icon: "grid" },
-];
+export const NAV_GROUPS: NavGroup[] = ALL_GROUPS.filter((g) => EDUCATION_ENABLED || !EDUCATION_GROUPS.has(g.key));
+
+/** The dashboard ("/") is the current shift handover. */
+export const HOME_LABEL = EDUCATION_ENABLED ? "Pulpit" : "Start";
+
+export const MOBILE_NAV: NavItem[] = EDUCATION_ENABLED
+  ? [
+      { to: "/", label: "Pulpit", icon: "home" },
+      { to: "/kuchnia", label: "Kuchnia", icon: "pot" },
+      { to: "/akademia", label: "Nauka", icon: "book" },
+      { to: "/powtorki", label: "Powtórki", icon: "repeat" },
+      { to: "/wiecej", label: "Menu", icon: "grid" },
+    ]
+  : [
+      { to: "/", label: "Start", icon: "home" },
+      { to: "/kuchnia/zakupy", label: "Zakupy", icon: "cart" },
+      { to: "/kuchnia/hurtownia", label: "Hurtownia", icon: "truck" },
+      { to: "/kuchnia/haccp", label: "HACCP", icon: "thermo" },
+      { to: "/wiecej", label: "Menu", icon: "grid" },
+    ];
 
 export function isActive(pathname: string, to: string): boolean {
   return to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");

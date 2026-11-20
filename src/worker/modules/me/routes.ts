@@ -1,7 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { ROLE_KEYS, type RoleKey } from "../../../shared/roles";
+import { GUEST_USER_ID, ROLE_KEYS, type RoleKey } from "../../../shared/roles";
 import { profileUpdateSchema, type MeResponse } from "../../../shared/schemas";
 import type { Db } from "../../db/client";
 import { levels, memberships, userProfiles } from "../../db/schema";
@@ -29,6 +29,9 @@ export async function getProfile(db: Db, userId: string): Promise<MeResponse["pr
 }
 
 async function buildMe(db: Db, user: CurrentUser): Promise<MeResponse> {
+  if (user.id === GUEST_USER_ID) {
+    return { user, guest: true, roles: [{ role: "trainer", locationId: null }], profile: { displayName: "Gość", position: null, targetLevelKey: null, theme: "system" } };
+  }
   const roleRows = await db
     .select({ role: memberships.roleKey, locationId: memberships.locationId })
     .from(memberships)

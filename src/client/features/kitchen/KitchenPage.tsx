@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { SHIFT_LABELS, type KitchenSummary } from "../../../shared/kitchen";
+import type { KitchenSummary } from "../../../shared/kitchen";
 import { PageHeader } from "../../components/ui";
 import { Icon, NAV_GROUPS, TONE } from "../layout/nav";
 import { fmtDate, useKitchenSummary } from "./common";
@@ -18,8 +18,9 @@ function statusFor(to: string, s: KitchenSummary | undefined): Status | null {
     case "/kuchnia/zmiana": {
       const l = s.handover.last;
       if (!l) return { text: "Brak protokołów", tone: "muted" };
-      const base = `${fmtDate(l.shiftDate)} · ${SHIFT_LABELS[l.shift].replace("Zmiana ", "")}`;
+      const base = fmtDate(l.shiftDate);
       if (l.hasFailure) return { text: `${base} · awaria!`, tone: "warn" };
+      if (l.shortages > 0) return { text: `${base} · braki w karcie${l.acknowledged ? "" : " · czeka na przejęcie"}`, tone: "warn" };
       return l.acknowledged ? { text: `${base} · przejęta`, tone: "ok" } : { text: `${base} · czeka na przejęcie`, tone: "warn" };
     }
     case "/kuchnia/haccp": {
@@ -36,33 +37,42 @@ function statusFor(to: string, s: KitchenSummary | undefined): Status | null {
 const DOT = { ok: "bg-ok", warn: "bg-warn", muted: "bg-border" };
 
 export function KitchenPage() {
+  return (
+    <>
+      <PageHeader title="Kuchnia" subtitle="Zakupy, zamówienia, przekazanie zmiany i ewidencja HACCP" />
+      <KitchenTiles />
+    </>
+  );
+}
+
+/** The four kitchen tiles with live status. */
+export function KitchenTiles({ compact = false }: { compact?: boolean }) {
   const summary = useKitchenSummary();
   const kitchen = NAV_GROUPS.find((g) => g.key === "kitchen")!;
   return (
     <>
-      <PageHeader title="Kuchnia" subtitle="Zakupy, zamówienia, przekazanie zmiany i ewidencja HACCP" />
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className={`grid gap-3 ${compact ? "grid-cols-2" : "sm:grid-cols-2"}`}>
         {kitchen.items.map((item) => {
           const st = statusFor(item.to, summary.data);
           return (
             <li key={item.to}>
               <Link
                 to={item.to}
-                className="group flex h-full min-h-36 flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-teal-500/60 hover:shadow-md"
+                className={`group flex h-full flex-col justify-between rounded-2xl border border-border bg-surface transition hover:-translate-y-0.5 hover:border-teal-500/60 hover:shadow-md ${compact ? "min-h-28 gap-2 p-3" : "min-h-36 gap-4 p-5"}`}
               >
-                <div className="flex items-start gap-4">
-                  <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ${TONE.kitchen}`}>
-                    <Icon name={item.icon} className="size-7" />
+                <div className={`flex items-start ${compact ? "gap-2" : "gap-4"}`}>
+                  <span className={`grid shrink-0 place-items-center rounded-2xl ${TONE.kitchen} ${compact ? "size-10" : "size-14"}`}>
+                    <Icon name={item.icon} className={compact ? "size-5" : "size-7"} />
                   </span>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-bold leading-tight">{item.label}</h2>
-                    <p className="mt-0.5 text-sm text-muted">{item.hint}</p>
+                    <h2 className={`font-bold leading-tight ${compact ? "text-sm" : "text-lg"}`}>{item.label}</h2>
+                    {!compact && <p className="mt-0.5 text-sm text-muted">{item.hint}</p>}
                   </div>
                   <span aria-hidden="true" className="ml-auto text-xl text-muted transition group-hover:translate-x-0.5 group-hover:text-fg">
                     ›
                   </span>
                 </div>
-                <p className="flex items-center gap-2 text-sm font-medium">
+                <p className={`flex items-center gap-2 font-medium ${compact ? "text-xs" : "text-sm"}`}>
                   <span aria-hidden="true" className={`size-2.5 rounded-full ${st ? DOT[st.tone] : "animate-pulse bg-border"}`} />
                   {st?.text ?? "…"}
                 </p>
