@@ -212,6 +212,13 @@ function TempForm({ onDone, onManage }: { onDone: () => void; onManage?: (() => 
   const summary = useKitchenSummary();
   const [name, setName] = useSignedName();
   const [temps, setTemps] = useState<Record<string, string>>({});
+  // iPhone's number pad has no minus key: the sign is a separate toggle (freezers start negative).
+  const [neg, setNeg] = useState<Record<string, boolean>>({});
+  const isNeg = (u: ColdUnit) => neg[u.id] ?? u.kind === "freezer";
+  const signed = (u: ColdUnit) => {
+    const raw = (temps[u.id] ?? "").trim();
+    return raw === "" ? "" : `${isNeg(u) ? "-" : ""}${raw}`;
+  };
   const [actions, setActions] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const save = useApiMutation((b: unknown) => ({ path: "/api/kitchen/haccp/entries", body: b }), [kk.summary, LOG_KEY]);
@@ -237,11 +244,12 @@ function TempForm({ onDone, onManage }: { onDone: () => void; onManage?: (() => 
       onSubmit={async (e) => {
         e.preventDefault();
         const readings = list
-          .filter((u) => parseTemp(temps[u.id] ?? "") != null)
-          .map((u) => ({ unitId: u.id, tempC: parseTemp(temps[u.id]!)!, correctiveAction: actions[u.id] ?? "" }));
+          .filter((u) => parseTemp(signed(u)) != null)
+          .map((u) => ({ unitId: u.id, tempC: parseTemp(signed(u))!, correctiveAction: actions[u.id] ?? "" }));
         const r = (await save.submit({ signedName: name, readings, pest: null })) as { saved: number; outOfRange: number } | undefined;
         if (r) {
           setTemps({});
+          setNeg({});
           setActions({});
           setMsg(`Zapisano ${r.saved} pomiar(y).${r.outOfRange ? ` Poza zakresem: ${r.outOfRange}.` : ""}`);
         }
@@ -255,7 +263,7 @@ function TempForm({ onDone, onManage }: { onDone: () => void; onManage?: (() => 
       {msg && <Saved text={msg} onDone={onDone} />}
       <ul className="grid gap-3">
         {list.map((u) => {
-          const v = parseTemp(temps[u.id] ?? "");
+          const v = parseTemp(signed(u));
           const out = v != null && (v < u.minC || v > u.maxC);
           return (
             <li key={u.id} className={`rounded-xl border bg-surface p-3 ${out ? "border-danger bg-danger/5" : "border-border"}`}>
@@ -266,7 +274,19 @@ function TempForm({ onDone, onManage }: { onDone: () => void; onManage?: (() => 
                     {fmtTemp(u.minC)} … {fmtTemp(u.maxC)}
                   </p>
                 </div>
-                <label className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    aria-label={`${u.name}: znak ${isNeg(u) ? "minus" : "plus"} — zmień`}
+                    aria-pressed={isNeg(u)}
+                    // Keep focus (and the keyboard) on the temperature field.
+                    onPointerDown={(e) => e.preventDefault()}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setNeg({ ...neg, [u.id]: !isNeg(u) })}
+                    className={`grid h-12 w-11 place-items-center rounded-lg border text-2xl font-bold ${isNeg(u) ? "border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300" : "border-border bg-surface-2 text-muted"}`}
+                  >
+                    {isNeg(u) ? "−" : "+"}
+                  </button>
                   <input
                     aria-label={`${u.name}: temperatura °C`}
                     data-step=""
@@ -276,11 +296,16 @@ function TempForm({ onDone, onManage }: { onDone: () => void; onManage?: (() => 
                     autoComplete="off"
                     placeholder="°C"
                     value={temps[u.id] ?? ""}
-                    onChange={(e) => setTemps({ ...temps, [u.id]: e.target.value })}
-                    className="h-12 w-24 rounded-lg border border-border bg-surface px-2 text-center text-lg font-bold tabular-nums aria-[invalid=true]:border-danger aria-[invalid=true]:text-danger"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // A typed "-" (Android keyboards have one) flips the sign instead.
+                      if (/[-−]/.test(val)) setNeg({ ...neg, [u.id]: !isNeg(u) });
+                      setTemps({ ...temps, [u.id]: val.replace(/[-−+]/g, "") });
+                    }}
+                    className="h-12 w-20 rounded-lg border border-border bg-surface px-2 text-center text-lg font-bold tabular-nums aria-[invalid=true]:border-danger aria-[invalid=true]:text-danger"
                   />
                   <span className="text-sm text-muted">°C</span>
-                </label>
+                </div>
               </div>
               {out && (
                 <div className="mt-3">
@@ -293,7 +318,7 @@ function TempForm({ onDone, onManage }: { onDone: () => void; onManage?: (() => 
           );
         })}
       </ul>
-      <p className="text-xs text-muted">Zamrażarki wpisuj z minusem, np. -18.</p>
+      <p className="text-xs text-muted">Przycisk −/+ zmienia znak. Zamrażarki mają od razu minus.</p>
       <NameField value={name} onChange={setName} error={save.fieldErrors?.signedName} />
       <SubmitRow pending={save.isPending} error={save.fieldErrors?.signedName ? null : save.error}>
         Zapisz temperatury
@@ -529,9 +554,9 @@ function UnitsManager() {
               </Select>
             )}
           </Field>
-          <Field label="Min °C">{(p) => <Input {...p} inputMode="decimal" required value={form.minC} onChange={(e) => setForm({ ...form, minC: e.target.value })} />}</Field>
+          <Field label="Min °C">{(p) => <Input {...p} inputMode="text" required value={form.minC} onChange={(e) => setForm({ ...form, minC: e.target.value })} />}</Field>
           <Field label="Max °C" error={add.fieldErrors?.maxC}>
-            {(p) => <Input {...p} inputMode="decimal" required value={form.maxC} onChange={(e) => setForm({ ...form, maxC: e.target.value })} />}
+            {(p) => <Input {...p} inputMode="text" required value={form.maxC} onChange={(e) => setForm({ ...form, maxC: e.target.value })} />}
           </Field>
           <Button type="submit" loading={add.isPending}>
             Dodaj
@@ -560,8 +585,8 @@ function UnitRow({ unit }: { unit: ColdUnit }) {
   return (
     <li className="grid grid-cols-2 gap-2 py-3 sm:grid-cols-[2fr_1fr_1fr_auto_auto] sm:items-center">
       <Input aria-label="Nazwa urządzenia" className="col-span-2 sm:col-span-1" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} />
-      <Input aria-label={`${unit.name}: min °C`} inputMode="decimal" value={v.minC} onChange={(e) => setV({ ...v, minC: e.target.value })} />
-      <Input aria-label={`${unit.name}: max °C`} inputMode="decimal" value={v.maxC} onChange={(e) => setV({ ...v, maxC: e.target.value })} />
+      <Input aria-label={`${unit.name}: min °C`} inputMode="text" value={v.minC} onChange={(e) => setV({ ...v, minC: e.target.value })} />
+      <Input aria-label={`${unit.name}: max °C`} inputMode="text" value={v.maxC} onChange={(e) => setV({ ...v, maxC: e.target.value })} />
       <Button
         variant="secondary"
         disabled={!dirty}
