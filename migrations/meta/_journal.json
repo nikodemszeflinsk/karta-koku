@@ -57,6 +57,13 @@
       "when": 1794842194417,
       "tag": "0007_vault",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795167665497,
+      "tag": "0008_kitchen",
+      "breakpoints": true
     }
   ]
 }

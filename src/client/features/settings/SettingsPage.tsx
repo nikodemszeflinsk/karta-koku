@@ -240,7 +240,8 @@ function AccountCard({ me }: { me: MeResponse }) {
 
 function AiCard() {
   const s = useAiStatus();
-  if (!s.data) return null;
+  // AI is an optional add-on: show nothing unless it is actually configured.
+  if (!s.data?.enabled) return null;
   const u = s.data.usage;
   return (
     <Card title="Trener AI">

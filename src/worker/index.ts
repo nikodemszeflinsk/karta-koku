@@ -3,6 +3,7 @@ import { HttpError } from "./lib/errors";
 import { originCheck, securityHeaders } from "./middleware/security";
 import { context, loadSession } from "./middleware/session";
 import { aiRoutes } from "./modules/ai/routes";
+import { kitchenRoutes } from "./modules/kitchen/routes";
 import { learningRoutes } from "./modules/learning/routes";
 import { vaultRoutes } from "./modules/vault/routes";
 import { invitePublicRoutes, teamRoutes } from "./modules/team/routes";
@@ -51,6 +52,7 @@ app.route("/ai", aiRoutes);
 app.route("/learning", learningRoutes);
 app.route("/vault", vaultRoutes);
 app.route("/team", teamRoutes);
+app.route("/kitchen", kitchenRoutes);
 
 app.notFound((c) => c.json({ error: { code: "not_found", message: "Nie znaleziono." } }, 404));
 

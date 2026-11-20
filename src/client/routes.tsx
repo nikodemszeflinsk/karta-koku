@@ -25,6 +25,11 @@ export const routes: RouteObject[] = [
     ),
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: "kuchnia", ...lazy(() => import("./features/kitchen/KitchenPage"), (m) => m.KitchenPage) },
+      { path: "kuchnia/zakupy", ...lazy(() => import("./features/kitchen/StockPage"), (m) => m.ShoppingPage) },
+      { path: "kuchnia/hurtownia", ...lazy(() => import("./features/kitchen/StockPage"), (m) => m.WholesalePage) },
+      { path: "kuchnia/zmiana", ...lazy(() => import("./features/kitchen/HandoverPage"), (m) => m.HandoverPage) },
+      { path: "kuchnia/haccp", ...lazy(() => import("./features/kitchen/HaccpPage"), (m) => m.HaccpPage) },
       { path: "akademia", ...lazy(() => import("./features/academy/AcademyPage"), (m) => m.AcademyPage) },
       { path: "akademia/lekcja/nowa", ...lazy(() => import("./features/academy/LessonPage"), (m) => m.LessonNewPage) },
       { path: "akademia/lekcja/:id", ...lazy(() => import("./features/academy/LessonPage"), (m) => m.LessonPage) },

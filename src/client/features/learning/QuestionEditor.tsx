@@ -128,7 +128,7 @@ export function QuestionEditor({
           {save.fieldErrors?.options && <p className="text-xs text-danger">{save.fieldErrors.options}</p>}
         </fieldset>
       )}
-      <Field label="Wzorcowa odpowiedź / kryteria oceny" error={save.fieldErrors?.explanation} hint="Pokazywana po odpowiedzi i używana przez trenera AI do oceny.">
+      <Field label="Wzorcowa odpowiedź / kryteria oceny" error={save.fieldErrors?.explanation} hint="Pokazywana po odpowiedzi jako wzorzec do porównania.">
         {(p) => <Textarea {...p} rows={4} value={explanation} onChange={(e) => setExplanation(e.target.value)} maxLength={5000} />}
       </Field>
       <fieldset>

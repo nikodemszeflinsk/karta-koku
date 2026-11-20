@@ -4,6 +4,7 @@ import type { NextLessons } from "../../../shared/learning";
 import { Alert, Card, EmptyState, PageHeader, Spinner } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { useDashboard } from "../../lib/queries";
+import { useKitchenSummary } from "../kitchen/common";
 import { Bar, useProgress } from "../learning/ProgressPage";
 
 const linkClass = "font-semibold text-accent underline-offset-2 hover:underline";
@@ -59,9 +60,7 @@ export function DashboardPage() {
             <p className="text-2xl font-bold tabular-nums">{due}</p>
             <p className="text-xs text-muted">{due === 0 ? "Brak zaległych pytań." : "pytań do powtórki"}</p>
           </Card>
-          <Card title="Trener AI" action={<Link to="/trener" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
-            <p className="text-sm text-muted">{d.ai.enabled ? "Rozmowa, lekcja, egzamin ustny lub symulacja problemu." : d.ai.reason}</p>
-          </Card>
+          <KitchenTodayCard linkClass={linkClass} />
         </div>
 
         <Card title="Cel rozwoju" className="lg:col-span-2" action={<Link to="/postepy" className={`text-sm ${linkClass}`}>Postępy</Link>}>
@@ -137,5 +136,34 @@ export function DashboardPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+function KitchenTodayCard({ linkClass }: { linkClass: string }) {
+  const k = useKitchenSummary();
+  const s = k.data;
+  const rows: [string, string, boolean][] = s
+    ? [
+        ["HACCP dziś", s.haccp.units ? `${s.haccp.measuredToday}/${s.haccp.units}${s.haccp.pestCheckedToday ? " · szkodniki ✓" : ""}` : "brak urządzeń", s.haccp.units > 0 && s.haccp.measuredToday >= s.haccp.units && s.haccp.outOfRangeToday === 0],
+        ["Hurtownia", s.wholesale.items ? `${s.wholesale.toOrder} do zamówienia` : "brak pozycji", s.wholesale.toOrder === 0],
+        ["Zakupy", s.shopping.items ? `${s.shopping.toBuy} do kupienia` : "brak pozycji", s.shopping.toBuy === 0],
+        ["Zmiana", s.handover.last ? (s.handover.last.acknowledged ? "przejęta" : "czeka na przejęcie") : "brak protokołu", Boolean(s.handover.last?.acknowledged)],
+      ]
+    : [];
+  return (
+    <Card title="Kuchnia dziś" action={<Link to="/kuchnia" className={`text-sm ${linkClass}`}>Otwórz</Link>}>
+      {!s ? (
+        <Spinner small />
+      ) : (
+        <ul className="grid gap-1.5 text-sm">
+          {rows.map(([label, value, ok]) => (
+            <li key={label} className="flex items-center justify-between gap-2">
+              <span className="text-muted">{label}</span>
+              <span className={`font-medium ${ok ? "text-ok" : ""}`}>{value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

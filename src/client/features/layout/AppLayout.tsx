@@ -1,77 +1,15 @@
 import { useEffect, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router";
+import { Link, Navigate, Outlet, useLocation } from "react-router";
+import { Icon, isActive, MOBILE_NAV, NAV_GROUPS, TONE, type NavGroup, type NavItem, type Tone } from "./nav";
 import { highestRole, ROLE_LABELS } from "../../../shared/roles";
 import { Alert, EmptyState, PageHeader, Spinner } from "../../components/ui";
 import { applyTheme } from "../../lib/theme";
 import { useMe } from "../../lib/queries";
 
-const ICONS = {
-  home: "M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10",
-  book: "M4 19.5V6a2 2 0 012-2h12v15H6a2 2 0 00-2 2zm0 0A2 2 0 006 22h12",
-  flask: "M9 3h6M10 3v6L4.5 18.5A2 2 0 006.2 21.5h11.6a2 2 0 001.7-3L14 9V3M7 15h10",
-  menu: "M4 6h16M4 12h16M4 18h10",
-  chef: "M6 13.9V20h12v-6.1A4 4 0 0017 6a5 5 0 00-10 0 4 4 0 00-1 7.9zM6 17h12",
-  note: "M5 4h10l4 4v12H5zM14 4v5h5M8 13h8M8 17h5",
-  search: "M11 19a8 8 0 100-16 8 8 0 000 16zm10 2l-4.3-4.3",
-  flame: "M12 22c4 0 7-3 7-7 0-5-5-7-5-12-3 2-4 5-4 7-1-1-2-2-2-4-2 2-3 5-3 9 0 4 3 7 7 7z",
-  link: "M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1",
-  gear: "M12 15a3 3 0 100-6 3 3 0 000 6zm7.4-3a7.4 7.4 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-2-1.2L14.5 2h-5l-.4 2.6a7.6 7.6 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 000 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 002 1.2l.4 2.6h5l.4-2.6a7.6 7.6 0 002-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z",
-  dots: "M5 12h.01M12 12h.01M19 12h.01",
-  chat: "M21 12a8 8 0 01-11.6 7.1L4 20l1.1-4.6A8 8 0 1121 12zM8 10h8M8 14h5",
-  repeat: "M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5",
-  exam: "M9 5h6M9 3h6v4H9zM6 5H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1V6a1 1 0 00-1-1h-1M8 13l2 2 4-4",
-  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
-  lock: "M6 11h12v10H6zM8 11V7a4 4 0 018 0v4M12 15v2",
-  users: "M16 19v-1a4 4 0 00-4-4H6a4 4 0 00-4 4v1M9 10a3 3 0 100-6 3 3 0 000 6zM22 19v-1a4 4 0 00-3-3.9M16 4.1a3 3 0 010 5.8",
-} as const;
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: keyof typeof ICONS;
-  /** Only for owner / admin / trainer. */
-  staff?: boolean;
-}
-
-function useNav(): NavItem[] {
+function useNavGroups(): NavGroup[] {
   const me = useMe();
   const staff = Boolean(me.data?.roles.some((r) => r.role === "owner" || r.role === "admin" || r.role === "trainer"));
-  return NAV.filter((n) => !n.staff || staff);
-}
-
-export const NAV: NavItem[] = [
-  { to: "/", label: "Pulpit", icon: "home" },
-  { to: "/trener", label: "Trener AI", icon: "chat" },
-  { to: "/akademia", label: "Akademia", icon: "book" },
-  { to: "/powtorki", label: "Powtórki", icon: "repeat" },
-  { to: "/egzaminy", label: "Egzaminy", icon: "exam" },
-  { to: "/postepy", label: "Postępy", icon: "chart" },
-  { to: "/skladniki", label: "Składniki", icon: "flask" },
-  { to: "/karta", label: "Karta KOKU", icon: "menu" },
-  { to: "/techniki", label: "Techniki", icon: "flame" },
-  { to: "/receptury", label: "Receptury", icon: "chef" },
-  { to: "/notatnik", label: "Notatnik", icon: "note" },
-  { to: "/sejf", label: "Sejf", icon: "lock" },
-  { to: "/szukaj", label: "Szukaj", icon: "search" },
-  { to: "/zrodla", label: "Źródła", icon: "link" },
-  { to: "/zespol", label: "Zespół", icon: "users", staff: true },
-  { to: "/ustawienia", label: "Ustawienia", icon: "gear" },
-];
-
-const MOBILE_NAV: NavItem[] = [
-  { to: "/", label: "Pulpit", icon: "home" },
-  { to: "/akademia", label: "Akademia", icon: "book" },
-  { to: "/trener", label: "Trener", icon: "chat" },
-  { to: "/powtorki", label: "Powtórki", icon: "repeat" },
-  { to: "/wiecej", label: "Więcej", icon: "dots" },
-];
-
-function Icon({ name }: { name: keyof typeof ICONS }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d={ICONS[name]} />
-    </svg>
-  );
+  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => !n.staff || staff) })).filter((g) => g.items.length > 0);
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -100,12 +38,31 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function SidebarLink({ item, tone }: { item: NavItem; tone: Tone }) {
+  const { pathname } = useLocation();
+  const active = isActive(pathname, item.to);
+  return (
+    <Link
+      to={item.to}
+      aria-current={active ? "page" : undefined}
+      className={`group flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-medium transition ${active ? "bg-accent-soft text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+    >
+      <span className={`grid size-7 place-items-center rounded-md ${TONE[tone]}`}>
+        <Icon name={item.icon} className="size-4" />
+      </span>
+      {item.label}
+      {active && <span aria-hidden="true" className="ml-auto h-4 w-1 rounded-full bg-accent" />}
+    </Link>
+  );
+}
+
 export function AppLayout() {
   const me = useMe();
   const role = me.data ? highestRole(me.data.roles.map((r) => r.role)) : null;
-  const location = useLocation();
-  const nav = useNav();
-  const inMore = !MOBILE_NAV.some((n) => n.to !== "/wiecej" && (n.to === "/" ? location.pathname === "/" : location.pathname.startsWith(n.to)));
+  const { pathname } = useLocation();
+  const groups = useNavGroups();
+  const name = me.data ? (me.data.profile.displayName ?? me.data.user.name) : "";
+  const onMain = MOBILE_NAV.some((n) => n.to !== "/wiecej" && isActive(pathname, n.to));
 
   return (
     <div className="min-h-dvh md:flex">
@@ -113,72 +70,122 @@ export function AppLayout() {
         Przejdź do treści
       </a>
 
-      <aside className="hidden w-60 shrink-0 border-r border-border bg-surface md:sticky md:top-0 md:flex md:h-dvh md:flex-col">
-        <Link to="/" className="flex items-center gap-2 px-5 py-5 text-lg font-bold tracking-tight">
-          <img src="/favicon.svg" alt="" className="size-7" />
+      <aside className="hidden w-64 shrink-0 print:!hidden border-r border-border bg-surface md:sticky md:top-0 md:flex md:h-dvh md:flex-col">
+        <Link to="/" className="flex items-center gap-2.5 px-5 pb-3 pt-5 text-lg font-bold tracking-tight">
+          <img src="/favicon.svg" alt="" className="size-8" />
           Sushi Chef Lab
         </Link>
-        <nav aria-label="Główna nawigacja" className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                `flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium ${isActive ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-fg"}`
-              }
-            >
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
+        <div className="px-3 pb-2">
+          <Link
+            to="/szukaj"
+            className="flex min-h-10 items-center gap-2 rounded-lg border border-border bg-bg px-3 text-sm text-muted hover:border-accent hover:text-fg"
+          >
+            <Icon name="search" className="size-4" />
+            Szukaj w aplikacji…
+          </Link>
+        </div>
+        <nav aria-label="Główna nawigacja" className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
+          <div>
+            <SidebarLink item={{ to: "/", label: "Pulpit", icon: "home" }} tone="account" />
+          </div>
+          {groups.map((g) => (
+            <div key={g.key}>
+              <Link
+                to={g.key === "kitchen" ? "/kuchnia" : g.items[0]!.to}
+                className="mb-1 block px-2 text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-fg"
+              >
+                {g.label}
+              </Link>
+              <div className="flex flex-col gap-0.5">
+                {g.items.map((item) => (
+                  <SidebarLink key={item.to} item={item} tone={g.tone} />
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         {me.data && (
-          <div className="border-t border-border px-5 py-4 text-xs text-muted">
-            <p className="truncate font-medium text-fg">{me.data.profile.displayName ?? me.data.user.name}</p>
-            {role && <p>{ROLE_LABELS[role]}</p>}
-          </div>
+          <Link to="/ustawienia" className="flex items-center gap-3 border-t border-border px-4 py-3 hover:bg-surface-2">
+            <span className="grid size-9 place-items-center rounded-full bg-accent text-sm font-bold text-accent-fg">{initials(name)}</span>
+            <span className="min-w-0 text-xs text-muted">
+              <span className="block truncate text-sm font-medium text-fg">{name}</span>
+              {role && ROLE_LABELS[role]}
+            </span>
+          </Link>
         )}
       </aside>
 
-      <main id="main" className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 pb-28 pt-5 sm:px-6 md:pb-10 md:pt-8">
+      <header className="sticky top-0 z-30 flex h-14 print:hidden items-center justify-between border-b border-border bg-surface/90 px-4 backdrop-blur md:hidden">
+        <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
+          <img src="/favicon.svg" alt="" className="size-7" />
+          Sushi Chef Lab
+        </Link>
+        <Link to="/szukaj" aria-label="Szukaj" className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
+          <Icon name="search" />
+        </Link>
+      </header>
+
+      <main id="main" className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 pb-28 pt-5 sm:px-6 md:pb-10 md:pt-8 print:max-w-none print:p-0">
         <Outlet />
       </main>
 
-      <nav aria-label="Główna nawigacja" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-        {MOBILE_NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/"}
-            className={({ isActive }) =>
-              `flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${isActive || (item.to === "/wiecej" && inMore) ? "text-accent" : "text-muted"}`
-            }
-          >
-            <Icon name={item.icon} />
-            {item.label}
-          </NavLink>
-        ))}
+      <nav aria-label="Nawigacja dolna" className="fixed inset-x-0 bottom-0 z-40 grid print:hidden grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        {MOBILE_NAV.map((item) => {
+          const active = item.to === "/wiecej" ? !onMain : isActive(pathname, item.to);
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={active ? "page" : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${active ? "text-accent" : "text-muted"}`}
+            >
+              <span className={`grid h-7 w-12 place-items-center rounded-full transition ${active ? "bg-accent-soft" : ""}`}>
+                <Icon name={item.icon} />
+              </span>
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+/** Tile grid used by the mobile "Menu" page. */
 export function MorePage() {
-  const extra = useNav().filter((n) => !MOBILE_NAV.some((m) => m.to === n.to));
+  const groups = useNavGroups();
   return (
     <>
-      <PageHeader title="Więcej" />
-      <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
-        {extra.map((n) => (
-          <li key={n.to}>
-            <Link to={n.to} className="flex min-h-14 items-center gap-3 px-4 text-sm font-medium hover:bg-surface-2">
-              <Icon name={n.icon} />
-              {n.label}
-            </Link>
-          </li>
+      <PageHeader title="Menu" subtitle="Wszystkie sekcje aplikacji" />
+      <div className="grid gap-6">
+        {groups.map((g) => (
+          <section key={g.key} aria-labelledby={`grp-${g.key}`}>
+            <h2 id={`grp-${g.key}`} className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+              {g.label}
+            </h2>
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {g.items.map((n) => (
+                <li key={n.to}>
+                  <Link to={n.to} className="flex h-full min-h-20 flex-col gap-2 rounded-xl border border-border bg-surface p-3 transition hover:border-accent hover:shadow-sm">
+                    <span className={`grid size-9 place-items-center rounded-lg ${TONE[g.tone]}`}>
+                      <Icon name={n.icon} />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold leading-tight">{n.label}</span>
+                      {n.hint && <span className="block text-xs text-muted">{n.hint}</span>}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
         ))}
-      </ul>
+      </div>
     </>
   );
 }

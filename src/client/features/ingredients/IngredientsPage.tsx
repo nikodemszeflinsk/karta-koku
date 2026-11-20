@@ -75,7 +75,7 @@ export function IngredientsPage() {
       {list.isError && <Alert tone="error">{list.error.message}</Alert>}
       {list.data && list.data.length === 0 && (
         <EmptyState title={dq || category || status ? "Brak wyników" : "Brak składników"}>
-          {canEdit && !dq && !category && !status ? "Dodaj pierwszy składnik albo poproś trenera AI o szkic (Etap 3)." : null}
+          {canEdit && !dq && !category && !status ? "Dodaj pierwszy składnik." : null}
         </EmptyState>
       )}
       {list.data && list.data.length > 0 && (

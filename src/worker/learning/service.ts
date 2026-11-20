@@ -162,7 +162,7 @@ export async function gradeAndRecord(db: Db, env: Env, userId: string, input: Su
         reasoningQuality: null,
         evidence: 0,
         gradedBy: "self",
-        feedback: "Trener AI jest niedostępny. Porównaj swoją odpowiedź z wzorcem i oceń się sam.",
+        feedback: "Porównaj swoją odpowiedź z wzorcem i oceń się sam.",
         explanation: q.explanation,
         correctOptionIds,
         correctMatches,

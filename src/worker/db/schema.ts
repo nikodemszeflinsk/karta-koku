@@ -13,6 +13,7 @@ import {
 } from "../../shared/knowledge";
 import { CHAT_MODES, CHAT_TOPIC_TYPES } from "../../shared/ai";
 import { QUESTION_TYPES, QUIZ_KINDS } from "../../shared/learning";
+import { COLD_UNIT_KINDS, SHIFTS, STOCK_LISTS } from "../../shared/kitchen";
 import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /*
@@ -987,4 +988,133 @@ export const vaultChunks = sqliteTable(
     data: blob("data", { mode: "buffer" }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.itemId, t.idx] })],
+);
+
+/* ---------------------------------------------------------------------------
+ * Kitchen operations (shopping list, wholesale order, shift handover, HACCP)
+ * ------------------------------------------------------------------------- */
+
+/** Catalog of products on the shopping list / wholesale order. Removed items are deactivated, not deleted. */
+export const stockItems = sqliteTable(
+  "stock_items",
+  {
+    id: text("id").primaryKey(),
+    list: text("list", { enum: STOCK_LISTS }).notNull(),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
+    unit: text("unit").notNull().default("szt."),
+    groupName: text("group_name").notNull().default(""),
+    /** Wholesale: the target stock level ("ile powinno być"). */
+    parQty: real("par_qty"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("stock_items_list_name_uq").on(t.list, t.nameKey).where(sql`active = 1`)],
+);
+
+/** One filled-in list. Exactly one open sheet per list; closing it freezes a summary. */
+export const stockSheets = sqliteTable(
+  "stock_sheets",
+  {
+    id: text("id").primaryKey(),
+    list: text("list", { enum: STOCK_LISTS }).notNull(),
+    status: text("status", { enum: ["open", "closed"] }).notNull().default("open"),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    closedBy: text("closed_by").references(() => users.id, { onDelete: "set null" }),
+    closedAt: integer("closed_at", { mode: "timestamp_ms" }),
+    summary: text("summary", { mode: "json" }).$type<unknown[]>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("stock_sheets_open_uq").on(t.list).where(sql`status = 'open'`), index("stock_sheets_list_idx").on(t.list, t.closedAt)],
+);
+
+export const stockSheetLines = sqliteTable(
+  "stock_sheet_lines",
+  {
+    sheetId: text("sheet_id")
+      .notNull()
+      .references(() => stockSheets.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => stockItems.id, { onDelete: "cascade" }),
+    qtyHave: real("qty_have"),
+    qtyOrder: real("qty_order"),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.sheetId, t.itemId] })],
+);
+
+/** Configurable "przygotowanie do serwisu" checklist. */
+export const handoverChecks = sqliteTable("handover_checks", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const shiftHandovers = sqliteTable(
+  "shift_handovers",
+  {
+    id: text("id").primaryKey(),
+    shiftDate: text("shift_date").notNull(),
+    shift: text("shift", { enum: SHIFTS }).notNull(),
+    authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+    prep: text("prep", { mode: "json" }).$type<{ label: string; done: boolean }[]>().notNull(),
+    prepNotes: text("prep_notes").notNull().default(""),
+    shortages: text("shortages", { mode: "json" }).$type<{ menuItemId: string | null; name: string }[]>().notNull(),
+    shortagesNote: text("shortages_note").notNull().default(""),
+    hasFailure: integer("has_failure", { mode: "boolean" }).notNull().default(false),
+    failureNote: text("failure_note").notNull().default(""),
+    acknowledgedBy: text("acknowledged_by").references(() => users.id, { onDelete: "set null" }),
+    acknowledgedAt: integer("acknowledged_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("shift_handovers_created_idx").on(t.createdAt)],
+);
+
+export const coldUnits = sqliteTable("cold_units", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: COLD_UNIT_KINDS }).notNull(),
+  minC: real("min_c").notNull(),
+  maxC: real("max_c").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/** HACCP temperature readings. Immutable records; the limits in force are copied in. */
+export const temperatureLogs = sqliteTable(
+  "temperature_logs",
+  {
+    id: text("id").primaryKey(),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => coldUnits.id, { onDelete: "restrict" }),
+    tempC: real("temp_c").notNull(),
+    minC: real("min_c").notNull(),
+    maxC: real("max_c").notNull(),
+    inRange: integer("in_range", { mode: "boolean" }).notNull(),
+    correctiveAction: text("corrective_action").notNull().default(""),
+    authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+    measuredAt: integer("measured_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("temperature_logs_measured_idx").on(t.measuredAt), index("temperature_logs_unit_idx").on(t.unitId, t.measuredAt)],
+);
+
+export const pestChecks = sqliteTable(
+  "pest_checks",
+  {
+    id: text("id").primaryKey(),
+    found: integer("found", { mode: "boolean" }).notNull().default(false),
+    notes: text("notes").notNull().default(""),
+    action: text("action").notNull().default(""),
+    authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("pest_checks_checked_idx").on(t.checkedAt)],
 );
