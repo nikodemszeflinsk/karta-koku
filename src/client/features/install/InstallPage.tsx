@@ -40,7 +40,7 @@ export function InstallPage() {
   };
   return (
     <>
-      <PageHeader title="Ikona na ekranie" subtitle="Otwieraj Kuchnia formularze jak zwykłą aplikację — jednym dotknięciem, na pełnym ekranie." />
+      <PageHeader title="Ikona na ekranie" subtitle="Aplikacja otwiera się wtedy jednym dotknięciem, na pełnym ekranie." />
       <div className="grid gap-4">
         {inst.installed && <Alert tone="success">Aplikacja jest już dodana do ekranu tego urządzenia.</Alert>}
         {inApp && !inst.installed && (

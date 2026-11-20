@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { RouteObject } from "react-router";
+import { Navigate, type RouteObject } from "react-router";
 import { LoginPage } from "./features/auth/LoginPage";
 import { SetupPage } from "./features/auth/SetupPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
@@ -11,6 +11,13 @@ import { EDUCATION_ENABLED } from "./features/layout/nav";
 /** Code-split route: the page's module is downloaded on first visit. */
 function lazy<M>(load: () => Promise<M>, pick: (m: M) => ComponentType): Pick<RouteObject, "lazy"> {
   return { lazy: async () => ({ Component: pick(await load()) }) };
+}
+
+/** Sections hidden while the app is kitchen-only (see EDUCATION_ENABLED): their URLs go to Start. */
+const EDUCATION_PATHS = /^(akademia|trener|egzaminy|powtorki|postepy|skladniki|karta|techniki|receptury|notatnik|sejf|szukaj|zrodla)(\/|$)/;
+function gate(r: RouteObject): RouteObject {
+  if (EDUCATION_ENABLED || !r.path || !EDUCATION_PATHS.test(r.path)) return r;
+  return { path: r.path, element: <Navigate to="/" replace /> };
 }
 
 export const routes: RouteObject[] = [
@@ -25,7 +32,7 @@ export const routes: RouteObject[] = [
         </VaultProvider>
       </RequireAuth>
     ),
-    children: [
+    children: ([
       { index: true, element: EDUCATION_ENABLED ? <DashboardPage /> : <StartPage /> },
       { path: "kuchnia", ...lazy(() => import("./features/kitchen/KitchenPage"), (m) => m.KitchenPage) },
       { path: "kuchnia/zakupy", ...lazy(() => import("./features/kitchen/StockPage"), (m) => m.ShoppingPage) },
@@ -62,6 +69,6 @@ export const routes: RouteObject[] = [
       { path: "instalacja", ...lazy(() => import("./features/install/InstallPage"), (m) => m.InstallPage) },
       { path: "ustawienia", ...lazy(() => import("./features/settings/SettingsPage"), (m) => m.SettingsPage) },
       { path: "*", element: <NotFoundPage /> },
-    ],
+    ] as RouteObject[]).map(gate),
   },
 ];

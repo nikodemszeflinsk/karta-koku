@@ -15,8 +15,8 @@ export const ROLE_RANK: Record<RoleKey, number> = {
 export const ROLE_LABELS: Record<RoleKey, string> = {
   owner: "Właściciel",
   admin: "Administrator",
-  trainer: "Trener",
-  learner: "Uczestnik",
+  trainer: "Kierownik",
+  learner: "Pracownik",
 };
 
 export function highestRole(roles: readonly RoleKey[]): RoleKey | null {

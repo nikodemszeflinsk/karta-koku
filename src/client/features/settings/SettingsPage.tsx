@@ -8,6 +8,7 @@ import { ApiRequestError, apiFetch } from "../../lib/api";
 import { authClient, authErrorMessage } from "../../lib/auth-client";
 import { qk, useLevels, useMe } from "../../lib/queries";
 import { useAiStatus } from "../../lib/ai";
+import { EDUCATION_ENABLED } from "../layout/nav";
 
 type ProfilePatch = Partial<{ displayName: string; position: string | null; targetLevelKey: string | null; theme: Theme }>;
 
@@ -54,8 +55,9 @@ function ProfileCard({ me }: { me: MeResponse }) {
           {(p) => <Input {...p} value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={80} />}
         </Field>
         <Field label="Stanowisko" error={fieldErrors?.position}>
-          {(p) => <Input {...p} value={position} onChange={(e) => setPosition(e.target.value)} maxLength={80} placeholder="np. kucharz sushi" />}
+          {(p) => <Input {...p} value={position} onChange={(e) => setPosition(e.target.value)} maxLength={80} placeholder="np. kucharz, szef zmiany" />}
         </Field>
+        {EDUCATION_ENABLED && (
         <Field label="Poziom docelowy" error={fieldErrors?.targetLevelKey}>
           {(p) => (
             <Select {...p} value={targetLevelKey} onChange={(e) => setTargetLevelKey(e.target.value)} disabled={!levels.data}>
@@ -68,6 +70,7 @@ function ProfileCard({ me }: { me: MeResponse }) {
             </Select>
           )}
         </Field>
+        )}
         <div className="flex flex-col justify-end gap-2 sm:col-span-2 sm:flex-row sm:items-center">
           {update.isError && !fieldErrors && <Alert tone="error">{update.error.message}</Alert>}
           {saved && !update.isPending && <Alert tone="success">Zapisano.</Alert>}
