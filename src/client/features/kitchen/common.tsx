@@ -192,7 +192,7 @@ export function StepNav() {
       <button type="button" className={`${btn} bg-accent text-accent-fg`} disabled={i < 0 || i >= f.length - 1} onPointerDown={keep} onMouseDown={keep} onClick={() => f[i + 1] && focusField(f[i + 1]!)}>
         Następne ↓
       </button>
-      <span className="min-w-0 flex-1 truncate text-right text-xs text-muted">{active.getAttribute("aria-label")}</span>
+      <span className="flex-1" aria-hidden="true" />
       <button type="button" className={`${btn} text-accent`} onPointerDown={keep} onMouseDown={keep} onClick={() => active.blur()}>
         Gotowe
       </button>
