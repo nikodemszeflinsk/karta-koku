@@ -228,6 +228,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
                       placeholder={list === "wholesale" ? fmtQty(q) || "0" : ""}
                       bad={orderBad}
                       highlight={q > 0}
+                      step={list === "shopping"}
                       onChange={(v) => change(it.id, "order", v)}
                       onBlur={() => flush(it.id)}
                     />
@@ -345,6 +346,8 @@ function QtyInput(props: {
   placeholder?: string;
   bad: boolean;
   highlight?: boolean;
+  /** Include in the keyboard prev/next order (default true). */
+  step?: boolean;
   onChange: (v: string) => void;
   onBlur: () => void;
 }) {
@@ -354,8 +357,7 @@ function QtyInput(props: {
       <input
         aria-label={props.label}
         aria-invalid={props.bad || undefined}
-        data-step=""
-        enterKeyHint="next"
+        {...(props.step !== false ? { "data-step": "", enterKeyHint: "next" as const } : {})}
         inputMode="decimal"
         autoComplete="off"
         value={props.value}
