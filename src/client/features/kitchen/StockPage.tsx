@@ -204,7 +204,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
                         <p className="font-medium leading-tight">{it.name}</p>
                         <p className="text-xs text-muted">{list === "wholesale" ? "wpisz, co zamówić" : "wpisz, co kupić"}</p>
                       </div>
-                      <NoteInput label={`${it.name}: ${list === "wholesale" ? "zamówić" : "kupić"} (opis)`} caption={list === "wholesale" ? "Zamówić — opis" : "Kupić — opis"} value={d.note} highlight={d.note.trim() !== ""} placeholder="własny tekst" onChange={(v) => change(it.id, "note", v)} onBlur={() => flush(it.id)} />
+                      <NoteInput label={`${it.name}: ${list === "wholesale" ? "zamówić" : "kupić"} (opis)`} caption={list === "wholesale" ? "Zamówić — opis" : "Kupić — opis"} value={d.note} highlight={d.note.trim() !== ""} step onChange={(v) => change(it.id, "note", v)} onBlur={() => flush(it.id)} />
                     </li>
                   );
                 }
@@ -232,7 +232,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
                       onBlur={() => flush(it.id)}
                     />
                     {list === "shopping" && (
-                      <NoteInput label={`${it.name}: opis`} caption="Opis" value={d.note} placeholder="np. marka, uwagi" onChange={(v) => change(it.id, "note", v)} onBlur={() => flush(it.id)} />
+                      <NoteInput label={`${it.name}: opis`} caption="Opis" value={d.note} onChange={(v) => change(it.id, "note", v)} onBlur={() => flush(it.id)} />
                     )}
                   </li>
                 );
@@ -302,18 +302,19 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
   );
 }
 
-function NoteInput(props: { label: string; caption: string; value: string; placeholder: string; highlight?: boolean; onChange: (v: string) => void; onBlur: () => void }) {
+/** `step`: include in the keyboard prev/next order (only when the text replaces the quantity). */
+function NoteInput(props: { label: string; caption: string; value: string; step?: boolean; highlight?: boolean; onChange: (v: string) => void; onBlur: () => void }) {
   return (
     <label className="flex min-w-0 flex-col gap-0.5">
       <span className="text-[11px] font-medium text-muted">{props.caption}</span>
       <input
         aria-label={props.label}
-        data-step=""
-        enterKeyHint="next"
+        {...(props.step ? { "data-step": "", enterKeyHint: "next" as const } : {})}
         autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
         maxLength={300}
         value={props.value}
-        placeholder={props.placeholder}
         onChange={(e) => props.onChange(e.target.value)}
         onBlur={props.onBlur}
         className={`h-11 w-full min-w-0 rounded-lg border bg-surface px-3 text-base placeholder:text-muted ${props.highlight ? "border-teal-500" : "border-border"}`}
