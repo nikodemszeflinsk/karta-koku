@@ -6,7 +6,7 @@ Stack: React + Vite + Tailwind (SPA) · Cloudflare Workers + Hono (API) · D1 + 
 
 Plan i decyzje: [`docs/etap-0-plan.md`](docs/etap-0-plan.md). Raporty: [etap 1](docs/etap-1-raport.md), [etap 2](docs/etap-2-raport.md), [etap 3](docs/etap-3-raport.md), [etap 4](docs/etap-4-raport.md), [etap 5](docs/etap-5-raport.md), [etap 6](docs/etap-6-raport.md); wdrożenie: [etap 7](docs/etap-7-wdrozenie.md).
 
-**Produkcja:** https://sushi-chef-lab.nikodemszeflinsk.workers.dev — publikowane automatycznie przez Cloudflare Workers Builds po każdym pushu na gałąź produkcyjną (szczegóły: `docs/etap-7-wdrozenie.md`).
+**Produkcja:** https://kuchnia-formularze.nikodemszeflinsk.workers.dev (stary adres sushi-chef-lab… przekierowuje). Adres obsługuje mały Worker `deploy/front-worker` (service binding do głównego Workera `sushi-chef-lab`) — publikowane automatycznie przez Cloudflare Workers Builds po każdym pushu na gałąź produkcyjną (szczegóły: `docs/etap-7-wdrozenie.md`).
 
 ## Uruchomienie lokalne
 

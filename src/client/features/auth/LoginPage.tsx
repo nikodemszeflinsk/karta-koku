@@ -12,7 +12,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
         <div className="mb-6 flex items-center gap-3">
           <img src="/favicon.svg" alt="" className="size-10" />
           <div>
-            <p className="text-lg font-bold tracking-tight">Sushi Chef Lab</p>
+            <p className="text-lg font-bold tracking-tight">Kuchnia formularze</p>
             <p className="text-xs text-muted">Prywatna akademia kulinarna</p>
           </div>
         </div>

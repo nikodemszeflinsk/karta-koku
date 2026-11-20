@@ -76,7 +76,7 @@ export function AppLayout() {
       <aside className="hidden w-64 shrink-0 print:!hidden border-r border-border bg-surface md:sticky md:top-0 md:flex md:h-dvh md:flex-col">
         <Link to="/" className="flex items-center gap-2.5 px-5 pb-3 pt-5 text-lg font-bold tracking-tight">
           <img src="/favicon.svg" alt="" className="size-8" />
-          Sushi Chef Lab
+          Kuchnia formularze
         </Link>
         {EDUCATION_ENABLED && (
         <div className="px-3 pb-2">

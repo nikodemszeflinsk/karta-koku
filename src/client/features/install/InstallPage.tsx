@@ -40,7 +40,7 @@ export function InstallPage() {
   };
   return (
     <>
-      <PageHeader title="Ikona na ekranie" subtitle="Otwieraj Sushi Chef Lab jak zwykłą aplikację — jednym dotknięciem, na pełnym ekranie." />
+      <PageHeader title="Ikona na ekranie" subtitle="Otwieraj Kuchnia formularze jak zwykłą aplikację — jednym dotknięciem, na pełnym ekranie." />
       <div className="grid gap-4">
         {inst.installed && <Alert tone="success">Aplikacja jest już dodana do ekranu tego urządzenia.</Alert>}
         {inApp && !inst.installed && (
@@ -83,7 +83,7 @@ export function InstallPage() {
                 Przewiń w dół i wybierz <strong>„Do ekranu początkowego”</strong>.
               </>,
               <>
-                Stuknij <strong>„Dodaj”</strong>. Ikona „Chef Lab” pojawi się na ekranie.
+                Stuknij <strong>„Dodaj”</strong>. Ikona „Kuchnia” pojawi się na ekranie.
               </>,
             ]}
           />

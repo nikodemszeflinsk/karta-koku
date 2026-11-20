@@ -12,7 +12,7 @@ export function createAuth(env: Env) {
   const appUrl = new URL(env.APP_URL);
 
   return betterAuth({
-    appName: "Sushi Chef Lab",
+    appName: "Kuchnia formularze",
     baseURL: env.APP_URL,
     basePath: "/api/auth",
     secret: env.BETTER_AUTH_SECRET,
@@ -67,7 +67,7 @@ export function createAuth(env: Env) {
     plugins: [
       passkey({
         rpID: appUrl.hostname,
-        rpName: "Sushi Chef Lab",
+        rpName: "Kuchnia formularze",
         origin: appUrl.origin,
       }),
     ],

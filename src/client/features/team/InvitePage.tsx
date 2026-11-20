@@ -45,7 +45,7 @@ export function InvitePage() {
   }
 
   return (
-    <AuthShell title="Zaproszenie" subtitle="Utwórz konto w Sushi Chef Lab.">
+    <AuthShell title="Zaproszenie" subtitle="Utwórz konto w aplikacji Kuchnia formularze.">
       {info.isPending && <Spinner label="Sprawdzanie zaproszenia…" />}
       {info.isError && <Alert tone="error">{info.error.message}</Alert>}
       {info.data && (

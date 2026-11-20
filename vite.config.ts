@@ -15,9 +15,9 @@ export default defineConfig({
       injectRegister: "script",
       includeAssets: ["favicon.svg", "apple-touch-icon.png", "theme-init.js"],
       manifest: {
-        name: "Sushi Chef Lab",
-        short_name: "Chef Lab",
-        description: "Prywatna akademia kulinarna dla kucharza sushi.",
+        name: "Kuchnia formularze",
+        short_name: "Kuchnia",
+        description: "Przekazanie zmiany, listy zakupów i hurtowni, HACCP.",
         lang: "pl",
         start_url: "/",
         scope: "/",
