@@ -12,14 +12,14 @@ type Draft = { have: string; order: string; note: string };
 const CONFIG: Record<StockList, { title: string; subtitle: string; icon: "cart" | "truck"; exportTitle: string; empty: string }> = {
   shopping: {
     title: "Lista zakupów",
-    subtitle: "Wpisz, ile trzeba kupić. Puste pole = nic.",
+    subtitle: "Wpisz, ile kupić, i ewentualnie opis.",
     icon: "cart",
     exportTitle: "Lista zakupów",
     empty: "Nic do kupienia.",
   },
   wholesale: {
     title: "Hurtownia",
-    subtitle: "Wpisz, ile jest na stanie — ilość do zamówienia liczy się sama z ustawionego „powinno być”.",
+    subtitle: "Wpisz, ile jest — „Zamówić” liczy się samo.",
     icon: "truck",
     exportTitle: "Zamówienie z hurtowni",
     empty: "Nic do zamówienia.",
@@ -209,13 +209,14 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
                   );
                 }
                 return (
-                  <li key={it.id} className={`grid items-center gap-x-3 gap-y-2 px-4 py-3 ${list === "wholesale" ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto_minmax(0,1.1fr)] sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,2fr)]"}`}>
+                  <li key={it.id} className={`grid items-center gap-x-3 gap-y-2 px-4 py-3 ${list === "wholesale" ? "grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 sm:gap-x-3" : "grid-cols-[minmax(0,1fr)_auto_minmax(0,1.1fr)] sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,2fr)]"}`}>
                     <div className="min-w-0">
                       <p className="font-medium leading-tight">{it.name}</p>
                       <p className="text-xs text-muted">
-                        {list === "wholesale" ? (it.parQty != null ? `powinno być: ${fmtQty(it.parQty)} ${it.unit}` : "brak ustawionego stanu") : it.unit}
+                        {list === "wholesale" ? (it.parQty != null ? it.unit : "ustaw „powinno być” w Edytuj pozycje") : it.unit}
                       </p>
                     </div>
+                    {list === "wholesale" && <ParBox name={it.name} unit={it.unit} value={it.parQty} />}
                     {list === "wholesale" && (
                       <QtyInput label={`${it.name}: jest`} caption="Jest" unit={it.unit} value={d.have} bad={haveBad} onChange={(v) => change(it.id, "have", v)} onBlur={() => flush(it.id)} />
                     )}
@@ -240,7 +241,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
           </section>
         ))}
       </div>
-      {list === "wholesale" && <p className="mt-2 text-xs text-muted">„Zamówić” liczy się samo (powinno być − jest). Wpisz własną liczbę, żeby ją nadpisać; wyczyść pole, by wrócić do automatu.</p>}
+      {list === "wholesale" && <p className="mt-2 text-xs text-muted">„Zamówić” liczy się samo (powinno − jest). „Powinno” zmienisz w „Edytuj pozycje”. Wpisz własną liczbę, żeby ją nadpisać; wyczyść pole, by wrócić do automatu.</p>}
 
       {closedText && (
         <Card title="Lista zamknięta" className="mt-4">
@@ -324,6 +325,17 @@ function NoteInput(props: { label: string; caption: string; value: string; place
   );
 }
 
+/** Read-only target level; changed only in "Edytuj pozycje". */
+function ParBox({ name, unit, value }: { name: string; unit: string; value: number | null }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5" aria-label={`${name}: powinno być ${value == null ? "nie ustawiono" : `${fmtQty(value)} ${unit}`}`} role="group">
+      <span className="text-[11px] font-medium text-muted">Powinno</span>
+      <span className="grid h-11 w-16 place-items-center rounded-lg bg-surface-2 text-base font-semibold tabular-nums text-muted sm:w-20">{value == null ? "—" : fmtQty(value)}</span>
+      <span className="text-[11px] text-muted">{unit}</span>
+    </div>
+  );
+}
+
 function QtyInput(props: {
   label: string;
   caption: string;
@@ -349,7 +361,7 @@ function QtyInput(props: {
         placeholder={props.placeholder}
         onChange={(e) => props.onChange(e.target.value)}
         onBlur={props.onBlur}
-        className={`h-11 w-20 rounded-lg border bg-surface px-2 text-center text-base font-semibold tabular-nums placeholder:font-normal aria-[invalid=true]:border-danger ${props.highlight ? "border-teal-500 placeholder:text-teal-700 dark:placeholder:text-teal-300" : "border-border placeholder:text-muted"}`}
+        className={`h-11 w-16 rounded-lg border bg-surface px-2 sm:w-20 text-center text-base font-semibold tabular-nums placeholder:font-normal aria-[invalid=true]:border-danger ${props.highlight ? "border-teal-500 placeholder:text-teal-700 dark:placeholder:text-teal-300" : "border-border placeholder:text-muted"}`}
       />
       <span className="text-[11px] text-muted">{props.unit}</span>
     </label>
