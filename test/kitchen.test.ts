@@ -217,20 +217,28 @@ describe("HACCP", () => {
   });
 
   it("records cleaning against a plan managed by managers", async () => {
-    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: learner, body: { labels: ["Podłoga"] } })).status).toBe(403);
-    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: owner, body: { labels: ["Podłoga", "Deski", "Lodówki"] } })).status).toBe(200);
+    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: learner, body: { tasks: [{ label: "Podłoga", frequency: "daily" }] } })).status).toBe(403);
+    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: owner, body: { tasks: [{ label: "Podłoga", frequency: "twice_daily" }, { label: "Deski", frequency: "daily" }, { label: "Lodówki", frequency: "biweekly" }] } })).status).toBe(200);
     const { tasks } = await json<{ tasks: { id: string; label: string }[] }>(api("/api/kitchen/haccp/cleaning-tasks", { cookie: learner }));
     expect(tasks.map((t) => t.label)).toEqual(["Podłoga", "Deski", "Lodówki"]);
+    expect(tasks.every((t) => (t as { due?: boolean }).due === true)).toBe(true);
     expect((await api("/api/kitchen/haccp/cleaning", { cookie: learner, body: { signedName: "Ola", taskIds: [] } })).status).toBe(400);
     const r = await api("/api/kitchen/haccp/cleaning", { cookie: learner, body: { signedName: "Ola", taskIds: [tasks[0]!.id, tasks[1]!.id], notes: "Po serwisie" } });
     expect(await json(r)).toEqual({ saved: 2 });
     // Renaming the plan keeps unchanged tasks and the history labels.
-    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: owner, body: { labels: ["Podłoga", "Okap"] } })).status).toBe(200);
+    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: owner, body: { tasks: [{ label: "Podłoga", frequency: "twice_daily" }, { label: "Okap", frequency: "weekly" }] } })).status).toBe(200);
     const log = await json<{ cleaning: { taskLabel: string; authorName: string; notes: string }[] }>(api("/api/kitchen/haccp/log", { cookie: owner }));
     expect(log.cleaning.map((x) => x.taskLabel).sort()).toEqual(["Deski", "Podłoga"]);
     expect(log.cleaning[0]).toMatchObject({ authorName: "Ola", notes: "Po serwisie" });
     const sum = await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }));
-    expect(sum.haccp).toMatchObject({ cleaningTasks: 2, cleanedToday: 1 });
+    // Podłoga needs 2× a day (done once → still due); Okap was never done → due.
+    expect(sum.haccp).toMatchObject({ cleaningTasks: 2, cleaningDue: 2 });
+    const after = await json<{ tasks: { label: string; due: boolean; doneInPeriod: number; required: number; frequency: string }[] }>(api("/api/kitchen/haccp/cleaning-tasks", { cookie: learner }));
+    expect(after.tasks[0]).toMatchObject({ label: "Podłoga", frequency: "twice_daily", doneInPeriod: 1, required: 2, due: true });
+    const floor = (await json<{ tasks: { id: string }[] }>(api("/api/kitchen/haccp/cleaning-tasks", { cookie: learner }))).tasks[0]!.id;
+    await api("/api/kitchen/haccp/cleaning", { cookie: learner, body: { signedName: "Ola", taskIds: [floor] } });
+    const done = await json<{ tasks: { label: string; due: boolean }[] }>(api("/api/kitchen/haccp/cleaning-tasks", { cookie: learner }));
+    expect(done.tasks.find((t) => t.label === "Podłoga")!.due).toBe(false);
   });
 
   it("has no way to edit or delete records", async () => {

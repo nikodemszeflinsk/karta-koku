@@ -23,6 +23,8 @@ export const ICONS = {
   truck: "M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 100-4 2 2 0 000 4zM17 19a2 2 0 100-4 2 2 0 000 4z",
   handover: "M9 5h6M9 3h6v4H9zM6 5H5a1 1 0 00-1 1v14a1 1 0 001 1h14a1 1 0 001-1V6a1 1 0 00-1-1h-1M8 12h8M8 16h5",
   phone: "M8 2h8a2 2 0 012 2v16a2 2 0 01-2 2H8a2 2 0 01-2-2V4a2 2 0 012-2zM11 18h2",
+  broom: "M20 3l-8.5 8.5M9 10l5 5M9.5 10.5L4 16c-1 1-1 4 0 5 1 1 4 1 5 0l5.5-5.5M6 18l2-2",
+  bug: "M9 8V7a3 3 0 016 0v1M8 8h8v6a4 4 0 01-8 0zM4 12h4M16 12h4M5 7l3 2M19 7l-3 2M5 19l3-2M19 19l-3-2M12 10v8",
   thermo: "M14 14.8V5a2 2 0 10-4 0v9.8a4 4 0 104 0zM12 17v-5",
 } as const;
 export type IconName = keyof typeof ICONS;

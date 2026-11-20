@@ -42,11 +42,11 @@ export const fmtDate = (ymd: string) => {
 };
 
 /** Compact page heading: back arrow, title, actions on one line. */
-export function KitchenHeader({ title, subtitle, icon, actions }: { title: string; subtitle?: string; icon: IconName; actions?: ReactNode }) {
+export function KitchenHeader({ title, subtitle, icon, actions, backTo = "/" }: { title: string; subtitle?: string; icon: IconName; actions?: ReactNode; backTo?: string }) {
   return (
     <header className="mb-3 print:mb-2">
       <div className="flex items-center gap-2">
-        <Link to="/" aria-label="Wróć na start" className="-ml-2 grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg print:hidden">
+        <Link to={backTo} aria-label="Wróć" className="-ml-2 grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg print:hidden">
           <span aria-hidden="true" className="text-xl leading-none">←</span>
         </Link>
         <span className={`hidden size-8 shrink-0 place-items-center rounded-lg sm:grid ${TONE.kitchen} print:hidden`}>

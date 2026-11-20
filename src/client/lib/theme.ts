@@ -1,10 +1,20 @@
-import type { Theme } from "../../shared/schemas";
+import { useState } from "react";
+
+/* Light/dark choice stored on this device. Light is the default, whatever the phone's setting. */
 
 const KEY = "scl-theme";
+export type LocalTheme = "light" | "dark";
 
-export function applyTheme(theme: Theme): void {
-  const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
+export function storedTheme(): LocalTheme {
+  try {
+    return localStorage.getItem(KEY) === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+export function applyTheme(theme: LocalTheme): void {
+  document.documentElement.classList.toggle("dark", theme === "dark");
   try {
     localStorage.setItem(KEY, theme);
   } catch {
@@ -12,12 +22,13 @@ export function applyTheme(theme: Theme): void {
   }
 }
 
-export function storedTheme(): Theme {
-  try {
-    const t = localStorage.getItem(KEY);
-    if (t === "light" || t === "dark" || t === "system") return t;
-  } catch {
-    /* ignore */
-  }
-  return "system";
+export function useLocalTheme(): [LocalTheme, (t: LocalTheme) => void] {
+  const [theme, setTheme] = useState(storedTheme);
+  return [
+    theme,
+    (t) => {
+      setTheme(t);
+      applyTheme(t);
+    },
+  ];
 }

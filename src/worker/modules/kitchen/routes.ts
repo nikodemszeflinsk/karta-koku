@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
+  CLEANING_RULES,
   cleaningEntrySchema,
   cleaningTasksSchema,
   coldUnitInputSchema,
@@ -334,26 +335,53 @@ const handoverRoutes = new Hono<AppEnv>()
 
 const rangeQuery = z.object({ from: z.iso.datetime().optional(), to: z.iso.datetime().optional() });
 
+/** Cleaning tasks with their status in the current period (minimum frequency). */
+async function cleaningStatus(db: Db, now = new Date()): Promise<CleaningTask[]> {
+  const tasks = await db.select().from(cleaningTasks).orderBy(asc(cleaningTasks.sortOrder));
+  if (tasks.length === 0) return [];
+  const since = new Date(now.getTime() - 31 * 86400_000);
+  const logs = await db
+    .select({ taskId: cleaningLogs.taskId, doneAt: cleaningLogs.doneAt })
+    .from(cleaningLogs)
+    .where(and(inArray(cleaningLogs.taskId, tasks.map((t) => t.id)), gte(cleaningLogs.doneAt, since)));
+  const dayStart = warsawDayStart(now).getTime();
+  return tasks.map((t) => {
+    const rule = CLEANING_RULES[t.frequency];
+    const start = rule.calendarDay ? dayStart : now.getTime() - rule.days * 86400_000;
+    const mine = logs.filter((l) => l.taskId === t.id).map((l) => l.doneAt.getTime());
+    const doneInPeriod = mine.filter((ts) => ts >= start).length;
+    const last = mine.length ? Math.max(...mine) : null;
+    return {
+      id: t.id,
+      label: t.label,
+      frequency: t.frequency,
+      doneInPeriod,
+      required: rule.times,
+      due: doneInPeriod < rule.times,
+      lastDoneAt: last ? new Date(last).toISOString() : null,
+    };
+  });
+}
+
 const haccpRoutes = new Hono<AppEnv>()
   // ---- cleaning ("sprzątanie i czyszczenie") ----
   .get("/cleaning-tasks", async (c) => {
-    const tasks: CleaningTask[] = await c.var.db.select({ id: cleaningTasks.id, label: cleaningTasks.label }).from(cleaningTasks).orderBy(asc(cleaningTasks.sortOrder));
-    return c.json({ tasks });
+    return c.json({ tasks: await cleaningStatus(c.var.db) });
   })
   .put("/cleaning-tasks", requireManager, zValidator("json", cleaningTasksSchema, validationHook), async (c) => {
-    const { labels } = c.req.valid("json");
+    const { tasks: wanted } = c.req.valid("json");
     const db = c.var.db;
     // Keep ids of tasks whose label is unchanged; past records keep their copied label either way.
     const old = await db.select().from(cleaningTasks);
     const byLabel = new Map(old.map((t) => [t.label, t.id]));
     const keep = new Set<string>();
-    const stmts = labels.map((label, i) => {
+    const stmts = wanted.map(({ label, frequency }, i) => {
       const id = byLabel.get(label);
       if (id && !keep.has(id)) {
         keep.add(id);
-        return db.update(cleaningTasks).set({ sortOrder: i + 1 }).where(eq(cleaningTasks.id, id));
+        return db.update(cleaningTasks).set({ sortOrder: i + 1, frequency }).where(eq(cleaningTasks.id, id));
       }
-      return db.insert(cleaningTasks).values({ id: crypto.randomUUID(), label, sortOrder: i + 1 });
+      return db.insert(cleaningTasks).values({ id: crypto.randomUUID(), label, frequency, sortOrder: i + 1 });
     });
     const drop = old.filter((t) => !keep.has(t.id)).map((t) => t.id);
     await db.batch([...(drop.length ? [db.delete(cleaningTasks).where(inArray(cleaningTasks.id, drop))] : []), ...stmts] as [never, ...never[]]);
@@ -517,14 +545,7 @@ export const kitchenRoutes = new Hono<AppEnv>()
         .groupBy(temperatureLogs.unitId),
       db.select({ id: pestChecks.id }).from(pestChecks).where(gte(pestChecks.checkedAt, dayStart)).limit(1),
     ]);
-    const [[cTasks], cleanedRows] = await Promise.all([
-      db.select({ n: sql<number>`count(*)` }).from(cleaningTasks),
-      db
-        .selectDistinct({ taskId: cleaningLogs.taskId })
-        .from(cleaningLogs)
-        .innerJoin(cleaningTasks, eq(cleaningTasks.id, cleaningLogs.taskId))
-        .where(gte(cleaningLogs.doneAt, dayStart)),
-    ]);
+    const cleaning = await cleaningStatus(db);
     const summary: KitchenSummary = {
       shopping: { items: shopping.items, toBuy: shopping.pending },
       wholesale: { items: wholesale.items, toOrder: wholesale.pending },
@@ -538,8 +559,8 @@ export const kitchenRoutes = new Hono<AppEnv>()
         measuredToday: measured.length,
         pestCheckedToday: Boolean(pest),
         outOfRangeToday: measured.reduce((s, m) => s + (Number(m.bad) > 0 ? 1 : 0), 0),
-        cleaningTasks: cTasks?.n ?? 0,
-        cleanedToday: cleanedRows.length,
+        cleaningTasks: cleaning.length,
+        cleaningDue: cleaning.filter((t) => t.due).length,
       },
     };
     return c.json(summary);

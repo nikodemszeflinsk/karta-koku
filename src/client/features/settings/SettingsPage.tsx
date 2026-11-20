@@ -1,16 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { highestRole, ROLE_LABELS } from "../../../shared/roles";
-import { THEMES, type MeResponse, type Theme } from "../../../shared/schemas";
+import type { MeResponse, Theme } from "../../../shared/schemas";
 import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner } from "../../components/ui";
 import { ApiRequestError, apiFetch } from "../../lib/api";
 import { authClient, authErrorMessage } from "../../lib/auth-client";
 import { qk, useLevels, useMe } from "../../lib/queries";
-import { applyTheme } from "../../lib/theme";
 import { useAiStatus } from "../../lib/ai";
-
-const THEME_LABELS: Record<Theme, string> = { system: "Systemowy", light: "Jasny", dark: "Ciemny" };
 
 type ProfilePatch = Partial<{ displayName: string; position: string | null; targetLevelKey: string | null; theme: Theme }>;
 
@@ -79,45 +76,6 @@ function ProfileCard({ me }: { me: MeResponse }) {
           </Button>
         </div>
       </form>
-    </Card>
-  );
-}
-
-function ThemeCard({ me }: { me: MeResponse }) {
-  const update = useUpdateProfile();
-  const [theme, setTheme] = useState<Theme>(me.profile.theme);
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
-
-  return (
-    <Card title="Wygląd">
-      <fieldset>
-        <legend className="mb-2 text-sm text-muted">Motyw interfejsu</legend>
-        <div className="grid grid-cols-3 gap-2">
-          {THEMES.map((t) => (
-            <label
-              key={t}
-              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border text-sm font-medium has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent ${theme === t ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
-            >
-              <input
-                type="radio"
-                name="theme"
-                value={t}
-                checked={theme === t}
-                className="sr-only"
-                onChange={() => {
-                  setTheme(t);
-                  update.mutate({ theme: t });
-                }}
-              />
-              {THEME_LABELS[t]}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      {update.isError && <div className="mt-3"><Alert tone="error">Nie udało się zapisać motywu.</Alert></div>}
     </Card>
   );
 }
@@ -275,7 +233,6 @@ export function SettingsPage() {
       <PageHeader title="Ustawienia" />
       <div className="grid gap-4">
         <ProfileCard me={me.data} />
-        <ThemeCard me={me.data} />
         <PasskeysCard />
         <AiCard />
         <AccountCard me={me.data} />

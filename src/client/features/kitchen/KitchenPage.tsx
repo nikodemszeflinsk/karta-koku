@@ -28,11 +28,11 @@ function statusFor(to: string, s: KitchenSummary | undefined): Status | null {
       if (h.units === 0 && h.cleaningTasks === 0) return { text: "Dodaj plan sprzątania i lodówki", tone: "muted" };
       if (h.outOfRangeToday > 0) return { text: `Poza zakresem dziś: ${h.outOfRangeToday}`, tone: "warn" };
       const parts = [
-        h.cleaningTasks ? `sprząt. ${h.cleanedToday}/${h.cleaningTasks}` : null,
+        h.cleaningTasks ? (h.cleaningDue ? `sprzątanie: ${h.cleaningDue} do zrobienia` : "sprzątanie ✓") : null,
         h.units ? `temp. ${h.measuredToday}/${h.units}` : null,
         `szkodniki ${h.pestCheckedToday ? "✓" : "—"}`,
       ].filter(Boolean);
-      const done = h.cleanedToday >= h.cleaningTasks && h.measuredToday >= h.units && h.pestCheckedToday;
+      const done = h.cleaningDue === 0 && h.measuredToday >= h.units && h.pestCheckedToday;
       return { text: `Dziś: ${parts.join(" · ")}`, tone: done ? "ok" : "warn" };
     }
   }

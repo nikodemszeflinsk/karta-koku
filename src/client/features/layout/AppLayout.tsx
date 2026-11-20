@@ -3,7 +3,7 @@ import { Link, Navigate, Outlet, useLocation } from "react-router";
 import { EDUCATION_ENABLED, HOME_LABEL, Icon, isActive, MOBILE_NAV, NAV_GROUPS, TONE, type NavGroup, type NavItem, type Tone } from "./nav";
 import { highestRole, ROLE_LABELS } from "../../../shared/roles";
 import { Alert, EmptyState, PageHeader, Spinner } from "../../components/ui";
-import { applyTheme } from "../../lib/theme";
+import { applyTheme, storedTheme, useLocalTheme } from "../../lib/theme";
 import { useMe } from "../../lib/queries";
 
 function useNavGroups(): NavGroup[] {
@@ -20,8 +20,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   useEffect(() => {
-    if (me.data) applyTheme(me.data.profile.theme);
-  }, [me.data]);
+    applyTheme(storedTheme());
+  }, []);
 
   if (me.isPending) {
     return (
@@ -199,8 +199,34 @@ export function MorePage() {
             </ul>
           </section>
         ))}
+        <ThemeSwitch />
       </div>
     </>
+  );
+}
+
+function ThemeSwitch() {
+  const [theme, setTheme] = useLocalTheme();
+  return (
+    <section aria-labelledby="grp-theme">
+      <h2 id="grp-theme" className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+        Wygląd
+      </h2>
+      <div role="radiogroup" aria-label="Motyw" className="grid grid-cols-2 gap-2">
+        {(["light", "dark"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="radio"
+            aria-checked={theme === t}
+            onClick={() => setTheme(t)}
+            className={`min-h-12 rounded-xl border text-sm font-semibold ${theme === t ? "border-accent bg-accent-soft text-accent" : "border-border bg-surface text-muted"}`}
+          >
+            {t === "light" ? "☀ Jasny" : "☾ Ciemny"}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

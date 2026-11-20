@@ -13,7 +13,7 @@ import {
 } from "../../shared/knowledge";
 import { CHAT_MODES, CHAT_TOPIC_TYPES } from "../../shared/ai";
 import { QUESTION_TYPES, QUIZ_KINDS } from "../../shared/learning";
-import { COLD_UNIT_KINDS, SHIFTS, STOCK_LISTS } from "../../shared/kitchen";
+import { CLEANING_FREQUENCIES, COLD_UNIT_KINDS, SHIFTS, STOCK_LISTS } from "../../shared/kitchen";
 import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /*
@@ -1130,6 +1130,7 @@ export const pestChecks = sqliteTable(
 export const cleaningTasks = sqliteTable("cleaning_tasks", {
   id: text("id").primaryKey(),
   label: text("label").notNull(),
+  frequency: text("frequency", { enum: CLEANING_FREQUENCIES }).notNull().default("daily"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: createdAt(),
 });

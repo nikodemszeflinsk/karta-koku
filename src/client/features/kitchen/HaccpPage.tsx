@@ -1,11 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { Icon, TONE, type IconName } from "../layout/nav";
 import {
   COLD_UNIT_KINDS,
   COLD_UNIT_LABELS,
   DEFAULT_RANGES,
   warsawDate,
   warsawDayStart,
+  CLEANING_FREQUENCIES,
+  CLEANING_FREQUENCY_LABELS,
+  type CleaningFrequency,
   type CleaningRow,
   type CleaningTask,
   type ColdUnit,
@@ -36,50 +41,121 @@ function parseTemp(s: string): number | null | undefined {
   return Number.isFinite(n) && n >= -60 && n <= 60 ? n : undefined;
 }
 
-type Tab = "cleaning" | "temps" | "pests" | "log" | "settings";
+type Section = "sprzatanie" | "temperatury" | "szkodniki" | "ewidencja" | "ustawienia";
+const TITLES: Record<Section, string> = {
+  sprzatanie: "Sprzątanie i czyszczenie",
+  temperatury: "Temperatury",
+  szkodniki: "Szkodniki",
+  ewidencja: "Ewidencja HACCP",
+  ustawienia: "Ustawienia HACCP",
+};
 
 export function HaccpPage() {
   const canEdit = useCanEdit();
-  const [tab, setTab] = useState<Tab>("cleaning");
-  const tabs: [Tab, string][] = [
-    ["cleaning", "Sprzątanie"],
-    ["temps", "Temperatury"],
-    ["pests", "Szkodniki"],
-    ["log", "Ewidencja"],
-    ...(canEdit ? ([["settings", "Ustawienia"]] as [Tab, string][]) : []),
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const raw = params.get("s");
+  const section = raw && raw in TITLES ? (raw as Section) : null;
+  const go = (s: Section | null) => navigate(s ? `/kuchnia/haccp?s=${s}` : "/kuchnia/haccp");
+  const toSettings = canEdit ? () => go("ustawienia") : undefined;
+  const toLog = () => go("ewidencja");
+
+  if (!section) return <HaccpHome canEdit={canEdit} />;
+  return (
+    <>
+      <KitchenHeader title={TITLES[section]} icon="thermo" backTo="/kuchnia/haccp" />
+      {section === "sprzatanie" && <CleaningForm onManage={toSettings} onDone={toLog} />}
+      {section === "temperatury" && (
+        <>
+          <StepNav />
+          <TempForm onManage={toSettings} onDone={toLog} />
+        </>
+      )}
+      {section === "szkodniki" && <PestForm onDone={toLog} />}
+      {section === "ewidencja" && <LogView />}
+      {section === "ustawienia" &&
+        (canEdit ? (
+          <div className="grid gap-6">
+            <CleaningPlanEditor />
+            <UnitsManager />
+          </div>
+        ) : (
+          <Alert tone="info">Ustawienia zmienia kierownik.</Alert>
+        ))}
+    </>
+  );
+}
+
+type TileStatus = { text: string; tone: "ok" | "warn" | "muted" };
+const DOT = { ok: "bg-ok", warn: "bg-warn", muted: "bg-border" };
+
+/** Three big tiles filling the screen: cleaning, temperatures, pests. */
+function HaccpHome({ canEdit }: { canEdit: boolean }) {
+  const summary = useKitchenSummary();
+  const h = summary.data?.haccp;
+  const tiles: { s: Section; title: string; icon: IconName; status: TileStatus | null }[] = [
+    {
+      s: "sprzatanie",
+      title: "Sprzątanie i czyszczenie",
+      icon: "broom",
+      status: !h ? null : h.cleaningTasks === 0 ? { text: "Brak planu sprzątania", tone: "muted" } : h.cleaningDue ? { text: `Do zrobienia: ${h.cleaningDue}`, tone: "warn" } : { text: "Wszystko zrobione na teraz", tone: "ok" },
+    },
+    {
+      s: "temperatury",
+      title: "Temperatury",
+      icon: "thermo",
+      status: !h
+        ? null
+        : h.units === 0
+          ? { text: "Brak urządzeń", tone: "muted" }
+          : h.outOfRangeToday
+            ? { text: `Poza zakresem dziś: ${h.outOfRangeToday}`, tone: "warn" }
+            : { text: `Dziś zmierzono ${h.measuredToday}/${h.units}`, tone: h.measuredToday >= h.units ? "ok" : "warn" },
+    },
+    {
+      s: "szkodniki",
+      title: "Szkodniki",
+      icon: "bug",
+      status: !h ? null : h.pestCheckedToday ? { text: "Dziś sprawdzone", tone: "ok" } : { text: "Dziś jeszcze nie sprawdzone", tone: "warn" },
+    },
   ];
-  const toSettings = canEdit ? () => setTab("settings") : undefined;
   return (
     <>
       <KitchenHeader title="HACCP" icon="thermo" />
-      <div role="tablist" aria-label="Sekcje HACCP" className="-mx-4 mb-4 flex gap-1 overflow-x-auto px-4 pb-1 print:hidden sm:mx-0 sm:px-0">
-        {tabs.map(([k, label]) => (
-          <button
-            key={k}
-            role="tab"
-            aria-selected={tab === k}
-            className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition ${tab === k ? "bg-accent text-accent-fg" : "border border-border bg-surface text-muted hover:text-fg"}`}
-            onClick={() => setTab(k)}
-          >
-            {label}
-          </button>
+      <ul className="grid min-h-[calc(100dvh-15rem)] grid-rows-3 gap-3 md:min-h-[calc(100dvh-12rem)]">
+        {tiles.map((t) => (
+          <li key={t.s} className="min-h-28">
+            <Link
+              to={`/kuchnia/haccp?s=${t.s}`}
+              className="group flex h-full items-center gap-4 rounded-2xl border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-teal-500/60 hover:shadow-md"
+            >
+              <span className={`grid size-16 shrink-0 place-items-center rounded-2xl ${TONE.kitchen}`}>
+                <Icon name={t.icon} className="size-8" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xl font-bold leading-tight">{t.title}</span>
+                <span className="mt-1.5 flex items-center gap-2 text-sm font-medium">
+                  <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${t.status ? DOT[t.status.tone] : "animate-pulse bg-border"}`} />
+                  {t.status?.text ?? "…"}
+                </span>
+              </span>
+              <span aria-hidden="true" className="text-2xl text-muted group-hover:text-fg">
+                ›
+              </span>
+            </Link>
+          </li>
         ))}
+      </ul>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link to="/kuchnia/haccp?s=ewidencja" className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-surface-2">
+          Ewidencja / druk
+        </Link>
+        {canEdit && (
+          <Link to="/kuchnia/haccp?s=ustawienia" className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-surface-2">
+            Ustawienia
+          </Link>
+        )}
       </div>
-      {tab === "cleaning" && <CleaningForm onManage={toSettings} onDone={() => setTab("log")} />}
-      {tab === "temps" && (
-        <>
-          <StepNav />
-          <TempForm onManage={toSettings} onDone={() => setTab("log")} />
-        </>
-      )}
-      {tab === "pests" && <PestForm onDone={() => setTab("log")} />}
-      {tab === "log" && <LogView />}
-      {tab === "settings" && (
-        <div className="grid gap-6">
-          <CleaningPlanEditor />
-          <UnitsManager />
-        </div>
-      )}
     </>
   );
 }
@@ -146,24 +222,39 @@ function CleaningForm({ onManage, onDone }: { onManage?: (() => void) | undefine
       }}
     >
       {h && h.cleaningTasks > 0 && (
-        <p className="text-sm text-muted">
-          Dziś zrobione: {h.cleanedToday}/{h.cleaningTasks}
-        </p>
+        <p className="text-sm text-muted">{h.cleaningDue ? `Do zrobienia teraz: ${h.cleaningDue}` : "Wszystko zrobione na teraz ✓"}</p>
       )}
       {msg && <Saved text={msg} onDone={onDone} />}
       <Card title="Sprzątanie i czyszczenie">
-        <ul className="grid gap-1">
-          {tasks.data.map((t) => (
-            <li key={t.id}>
-              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-surface-2">
-                <input type="checkbox" className="size-5 shrink-0 accent-[var(--color-accent)]" checked={Boolean(done[t.id])} onChange={(e) => setDone({ ...done, [t.id]: e.target.checked })} />
-                <span>{t.label}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-        <button type="button" className="mt-1 px-2 text-xs font-semibold text-accent" onClick={() => setDone(Object.fromEntries(tasks.data.map((t) => [t.id, true])))}>
-          Zaznacz wszystko
+        {[
+          ["Do zrobienia", tasks.data.filter((t) => t.due)],
+          ["Zrobione na teraz", tasks.data.filter((t) => !t.due)],
+        ].map(([title, list]) =>
+          (list as CleaningTask[]).length === 0 ? null : (
+            <div key={title as string} className="mb-2">
+              <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">{title as string}</p>
+              <ul className="grid gap-1">
+                {(list as CleaningTask[]).map((t) => (
+                  <li key={t.id}>
+                    <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg px-2 py-1 hover:bg-surface-2">
+                      <input type="checkbox" className="size-5 shrink-0 accent-[var(--color-accent)]" checked={Boolean(done[t.id])} onChange={(e) => setDone({ ...done, [t.id]: e.target.checked })} />
+                      <span className="min-w-0 flex-1">
+                        <span className={`block ${t.due ? "font-medium" : "text-muted"}`}>{t.label}</span>
+                        <span className="block text-xs text-muted">
+                          {CLEANING_FREQUENCY_LABELS[t.frequency]}
+                          {t.required > 1 && ` · dziś ${t.doneInPeriod}/${t.required}`}
+                          {t.lastDoneAt && ` · ostatnio ${fmtDateTime(t.lastDoneAt)}`}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ),
+        )}
+        <button type="button" className="mt-1 px-2 text-xs font-semibold text-accent" onClick={() => setDone(Object.fromEntries(tasks.data.filter((t) => t.due).map((t) => [t.id, true])))}>
+          Zaznacz wszystkie do zrobienia
         </button>
         <div className="mt-3">
           <Field label="Uwagi (opcjonalnie)">{(p) => <Textarea {...p} rows={2} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />}</Field>
@@ -180,26 +271,45 @@ function CleaningForm({ onManage, onDone }: { onManage?: (() => void) | undefine
 
 function CleaningPlanEditor() {
   const tasks = useCleaningTasks();
-  const [text, setText] = useState<string | null>(null);
-  const save = useApiMutation((b: { labels: string[] }) => ({ path: "/api/kitchen/haccp/cleaning-tasks", method: "PUT", body: b }), [cleaningKey, kk.summary]);
-  const value = text ?? (tasks.data ?? []).map((t) => t.label).join("\n");
+  const [rows, setRows] = useState<{ label: string; frequency: CleaningFrequency }[] | null>(null);
+  const save = useApiMutation((b: { tasks: { label: string; frequency: CleaningFrequency }[] }) => ({ path: "/api/kitchen/haccp/cleaning-tasks", method: "PUT", body: b }), [cleaningKey, kk.summary]);
+  const value = rows ?? (tasks.data ?? []).map((t) => ({ label: t.label, frequency: t.frequency }));
+  const set = (next: typeof value) => setRows(next);
   return (
     <Card title="Plan sprzątania">
-      <Field label="Jedno zadanie w linii" hint="Np. podłoga, deski i noże, wnętrza lodówek. Zmiana nie wpływa na zapisane wpisy.">
-        {(p) => <Textarea {...p} rows={8} value={value} onChange={(e) => setText(e.target.value)} />}
-      </Field>
+      <p className="mb-3 text-sm text-muted">Zadanie i jak często musi być zrobione (co najmniej). Zmiana planu nie wpływa na zapisane wpisy.</p>
+      <ul className="grid gap-2">
+        {value.map((r, i) => (
+          <li key={i} className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_16rem_auto]">
+            <Input aria-label={`Zadanie ${i + 1}`} value={r.label} maxLength={120} placeholder="np. podłoga" onChange={(e) => set(value.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} className="col-span-2 sm:col-span-1" />
+            <Select aria-label={`Zadanie ${i + 1}: częstotliwość`} value={r.frequency} onChange={(e) => set(value.map((x, j) => (j === i ? { ...x, frequency: e.target.value as CleaningFrequency } : x)))}>
+              {CLEANING_FREQUENCIES.map((f) => (
+                <option key={f} value={f}>
+                  {CLEANING_FREQUENCY_LABELS[f]}
+                </option>
+              ))}
+            </Select>
+            <button type="button" aria-label={`Usuń zadanie ${i + 1}`} className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-danger" onClick={() => set(value.filter((_, j) => j !== i))}>
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Button type="button" variant="ghost" className="mt-2 text-accent" onClick={() => set([...value, { label: "", frequency: "daily" }])}>
+        + Dodaj zadanie
+      </Button>
       {save.error && <Alert tone="error">{save.error.message}</Alert>}
       <div className="mt-3 flex items-center gap-3">
         <Button
           loading={save.isPending}
-          disabled={text === null}
+          disabled={rows === null}
           onClick={async () => {
-            if (await save.submit({ labels: value.split("\n").map((l) => l.trim()).filter(Boolean) })) setText(null);
+            if (await save.submit({ tasks: value.map((r) => ({ ...r, label: r.label.trim() })).filter((r) => r.label) })) setRows(null);
           }}
         >
           Zapisz plan
         </Button>
-        {save.isSuccess && text === null && <span className="text-sm text-ok">Zapisano.</span>}
+        {save.isSuccess && rows === null && <span className="text-sm text-ok">Zapisano.</span>}
       </div>
     </Card>
   );

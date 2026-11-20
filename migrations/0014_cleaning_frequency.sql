@@ -1,0 +1,1 @@
+ALTER TABLE `cleaning_tasks` ADD `frequency` text DEFAULT 'daily' NOT NULL;

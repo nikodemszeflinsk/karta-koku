@@ -67,7 +67,28 @@ export const coldUnitUpdateSchema = z.object({
   maxC: z.number().min(-60).max(30).optional(),
   sortOrder: z.number().int().min(0).max(100000).optional(),
 });
-export const cleaningTasksSchema = z.object({ labels: z.array(z.string().trim().min(1).max(120)).max(80) });
+/** Minimum frequency of a cleaning task ("co najmniej"). Doing it more often is fine. */
+export const CLEANING_FREQUENCIES = ["twice_daily", "daily", "weekly", "biweekly", "monthly"] as const;
+export type CleaningFrequency = (typeof CLEANING_FREQUENCIES)[number];
+export const CLEANING_FREQUENCY_LABELS: Record<CleaningFrequency, string> = {
+  twice_daily: "co najmniej 2× dziennie",
+  daily: "co najmniej raz dziennie",
+  weekly: "co najmniej raz w tygodniu",
+  biweekly: "co najmniej raz na 2 tygodnie",
+  monthly: "co najmniej raz w miesiącu",
+};
+/** times required within the period; "day" = calendar day in Warsaw, otherwise a rolling window of `days`. */
+export const CLEANING_RULES: Record<CleaningFrequency, { times: number; days: number; calendarDay: boolean }> = {
+  twice_daily: { times: 2, days: 1, calendarDay: true },
+  daily: { times: 1, days: 1, calendarDay: true },
+  weekly: { times: 1, days: 7, calendarDay: false },
+  biweekly: { times: 1, days: 14, calendarDay: false },
+  monthly: { times: 1, days: 30, calendarDay: false },
+};
+
+export const cleaningTasksSchema = z.object({
+  tasks: z.array(z.object({ label: z.string().trim().min(1).max(120), frequency: z.enum(CLEANING_FREQUENCIES) })).max(80),
+});
 export const cleaningEntrySchema = z.object({
   signedName: signedNameSchema,
   taskIds: z.array(z.string().max(100)).min(1, "Zaznacz, co zostało zrobione").max(80),
@@ -76,6 +97,12 @@ export const cleaningEntrySchema = z.object({
 export interface CleaningTask {
   id: string;
   label: string;
+  frequency: CleaningFrequency;
+  /** Times done in the current period, and how many are required. */
+  doneInPeriod: number;
+  required: number;
+  due: boolean;
+  lastDoneAt: string | null;
 }
 export interface CleaningRow {
   id: string;
@@ -184,7 +211,7 @@ export interface KitchenSummary {
   shopping: { items: number; toBuy: number };
   wholesale: { items: number; toOrder: number };
   handover: { last: { shiftDate: string; shift: Shift; hasFailure: boolean; shortages: number; acknowledged: boolean } | null };
-  haccp: { units: number; measuredToday: number; pestCheckedToday: boolean; outOfRangeToday: number; cleaningTasks: number; cleanedToday: number };
+  haccp: { units: number; measuredToday: number; pestCheckedToday: boolean; outOfRangeToday: number; cleaningTasks: number; cleaningDue: number };
 }
 
 /** Quantity to order on the wholesale sheet: manual override, else par − stock (never negative). */
