@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Alert, Button, Card, PageHeader } from "../../components/ui";
-import { dismissInstall, installDismissed, useInstall } from "../../lib/install";
+import { dismissInstall, inAppBrowser, installDismissed, iosBrowser, useInstall } from "../../lib/install";
 
 function ShareIcon() {
   return (
@@ -27,11 +27,35 @@ function Steps({ items }: { items: ReactNode[] }) {
 export function InstallPage() {
   const inst = useInstall();
   const [result, setResult] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const inApp = inAppBrowser();
+  const url = window.location.origin;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
   return (
     <>
       <PageHeader title="Ikona na ekranie" subtitle="Otwieraj Sushi Chef Lab jak zwykłą aplikację — jednym dotknięciem, na pełnym ekranie." />
       <div className="grid gap-4">
         {inst.installed && <Alert tone="success">Aplikacja jest już dodana do ekranu tego urządzenia.</Alert>}
+        {inApp && !inst.installed && (
+          <Alert tone="error">
+            Link jest otwarty wewnątrz {inApp} — tu nie da się dodać ikony. Skopiuj link i wklej go w{" "}
+            <strong>{inst.platform === "ios" ? "Safari" : "Chrome"}</strong>.
+          </Alert>
+        )}
+        <Card>
+          <p className="text-sm">Adres aplikacji:</p>
+          <p className="mt-1 break-all font-mono text-sm font-semibold">{url}</p>
+          <Button variant="secondary" className="mt-3" onClick={() => void copy()}>
+            {copied ? "Skopiowano ✓" : "Kopiuj link"}
+          </Button>
+        </Card>
         {result && <Alert tone="success">{result}</Alert>}
 
         {inst.canPrompt && (
@@ -41,7 +65,14 @@ export function InstallPage() {
           </Card>
         )}
 
-        <Card title={inst.platform === "ios" ? "iPhone / iPad (Safari)" : "iPhone / iPad"} className={inst.platform === "ios" ? "border-accent" : ""}>
+        <Card title="iPhone / iPad" className={inst.platform === "ios" ? "border-accent" : ""}>
+          {inst.platform === "ios" && iosBrowser() !== "safari" && (
+            <p className="mb-3 text-sm text-warn">
+              {iosBrowser() === "chrome"
+                ? "Używasz Chrome: stuknij ikonę Udostępnij w pasku adresu (u góry), potem „Dodaj do ekranu początkowego”. Jeśli jej nie ma — otwórz link w Safari."
+                : "Ta przeglądarka może nie umieć dodać ikony — otwórz link w Safari."}
+            </p>
+          )}
           <Steps
             items={[
               <>Otwórz tę stronę w <strong>Safari</strong>.</>,
@@ -71,6 +102,7 @@ export function InstallPage() {
               <>Potwierdź. Ikona pojawi się na ekranie i w liście aplikacji.</>,
             ]}
           />
+          <p className="mt-3 text-xs text-muted">Samsung Internet: menu ≡ → „Dodaj stronę do” → „Ekran startowy”.</p>
         </Card>
 
         <p className="text-xs text-muted">Po dodaniu nadal logujesz się tym samym kontem. Dane nie są przechowywane na telefonie — aplikacja potrzebuje internetu.</p>

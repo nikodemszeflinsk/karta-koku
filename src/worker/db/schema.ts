@@ -1070,6 +1070,9 @@ export const shiftHandovers = sqliteTable(
     shortagesNote: text("shortages_note").notNull().default(""),
     hasFailure: integer("has_failure", { mode: "boolean" }).notNull().default(false),
     failureNote: text("failure_note").notNull().default(""),
+    /** Typed first name (no-login mode: the account is shared, so this says who it was). */
+    signedName: text("signed_name").notNull().default(""),
+    acknowledgedName: text("acknowledged_name").notNull().default(""),
     acknowledgedBy: text("acknowledged_by").references(() => users.id, { onDelete: "set null" }),
     acknowledgedAt: integer("acknowledged_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
@@ -1102,6 +1105,7 @@ export const temperatureLogs = sqliteTable(
     maxC: real("max_c").notNull(),
     inRange: integer("in_range", { mode: "boolean" }).notNull(),
     correctiveAction: text("corrective_action").notNull().default(""),
+    signedName: text("signed_name").notNull().default(""),
     authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
     measuredAt: integer("measured_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -1115,8 +1119,46 @@ export const pestChecks = sqliteTable(
     found: integer("found", { mode: "boolean" }).notNull().default(false),
     notes: text("notes").notNull().default(""),
     action: text("action").notNull().default(""),
+    signedName: text("signed_name").notNull().default(""),
     authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
     checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("pest_checks_checked_idx").on(t.checkedAt)],
+);
+
+/** HACCP cleaning plan: tasks to tick off ("sprzątanie i czyszczenie"). */
+export const cleaningTasks = sqliteTable("cleaning_tasks", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
+/** Append-only cleaning records; the task label is copied so history survives plan edits. */
+export const cleaningLogs = sqliteTable(
+  "cleaning_logs",
+  {
+    id: text("id").primaryKey(),
+    taskId: text("task_id").references(() => cleaningTasks.id, { onDelete: "set null" }),
+    taskLabel: text("task_label").notNull(),
+    notes: text("notes").notNull().default(""),
+    signedName: text("signed_name").notNull().default(""),
+    authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+    doneAt: integer("done_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("cleaning_logs_done_idx").on(t.doneAt)],
+);
+
+/** One-off lines typed at the bottom of an open list (not part of the product catalog). */
+export const stockSheetExtras = sqliteTable(
+  "stock_sheet_extras",
+  {
+    id: text("id").primaryKey(),
+    sheetId: text("sheet_id")
+      .notNull()
+      .references(() => stockSheets.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("stock_sheet_extras_sheet_idx").on(t.sheetId)],
 );

@@ -3,7 +3,6 @@ import { Link } from "react-router";
 import type { HandoverRow } from "../../../shared/kitchen";
 import { Alert, Spinner } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
-import { useMe } from "../../lib/queries";
 import { InstallBanner } from "../install/InstallPage";
 import { fmtDate, kk } from "./common";
 import { HandoverCard } from "./HandoverPage";
@@ -11,18 +10,14 @@ import { KitchenTiles } from "./KitchenPage";
 
 /** Home screen: the latest shift handover first — "what do I start with?". */
 export function StartPage() {
-  const me = useMe();
   const q = useQuery({ queryKey: kk.handovers, queryFn: async () => (await apiFetch<{ handovers: HandoverRow[] }>("/api/kitchen/handovers")).handovers });
-  const name = me.data ? (me.data.profile.displayName ?? me.data.user.name).split(" ")[0] : "";
   const today = new Date().toLocaleDateString("pl-PL", { timeZone: "Europe/Warsaw", weekday: "long", day: "numeric", month: "long" });
   const latest = q.data?.[0];
 
   return (
     <>
-      <header className="mb-4">
-        <p className="text-sm capitalize text-muted">{today}</p>
-        <h1 className="text-2xl font-bold tracking-tight">Cześć{name ? `, ${name}` : ""}</h1>
-      </header>
+      <h1 className="sr-only">Start</h1>
+      <p className="mb-3 text-sm font-medium capitalize text-muted">{today}</p>
       <InstallBanner />
 
       <section aria-labelledby="start-h" className="mb-6">

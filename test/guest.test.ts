@@ -22,10 +22,10 @@ describe("guest mode (OPEN_ACCESS)", () => {
   });
 
   it("lets the shared guest write a handover and acknowledge it", async () => {
-    const r = await api("/api/kitchen/handovers", { body: { shiftDate: "2026-11-20", prep: [], shortages: [], hasFailure: false } });
+    const r = await api("/api/kitchen/handovers", { body: { signedName: "Ola", shiftDate: "2026-11-20", prep: [], shortages: [], hasFailure: false } });
     expect(r.status).toBe(201);
     const { id } = (await r.json()) as { id: string };
-    expect((await api(`/api/kitchen/handovers/${id}/ack`, { body: {} })).status).toBe(200);
+    expect((await api(`/api/kitchen/handovers/${id}/ack`, { body: { name: "Kuba" } })).status).toBe(200);
   });
 
   it("keeps everything else behind a login", async () => {

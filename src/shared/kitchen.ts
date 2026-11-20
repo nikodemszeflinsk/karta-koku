@@ -24,6 +24,9 @@ export const TEXT_UNIT = "opis";
 export const isTextUnit = (unit: string) => unit.trim().toLowerCase() === TEXT_UNIT;
 export const UNIT_SUGGESTIONS = ["szt.", "kg", "g", "l", "opak.", "karton", "worek", "butelka", TEXT_UNIT];
 
+/** First name typed on protocols and HACCP records. */
+export const signedNameSchema = z.string().trim().min(1, "Wpisz imię").max(60);
+
 const qty = z.number().min(0).max(100000).nullable();
 const name = z.string().trim().min(1, "Podaj nazwę").max(120);
 
@@ -35,10 +38,12 @@ export const stockItemInputSchema = z.object({
 });
 export const stockItemUpdateSchema = stockItemInputSchema.partial().extend({ sortOrder: z.number().int().min(0).max(100000).optional() });
 export const stockImportSchema = z.object({ text: z.string().max(50000) });
+export const stockExtraSchema = z.object({ text: z.string().trim().min(1, "Wpisz pozycję").max(200) });
 export const stockLineSchema = z.object({ qtyHave: qty.optional(), qtyOrder: qty.optional(), note: z.string().trim().max(300).optional() });
 
 export const handoverInputSchema = z
   .object({
+    signedName: signedNameSchema,
     shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Nieprawidłowa data"),
     /** No longer asked in the form; the server fills it from the time of day. */
     shift: z.enum(SHIFTS).optional(),
@@ -62,7 +67,27 @@ export const coldUnitUpdateSchema = z.object({
   maxC: z.number().min(-60).max(30).optional(),
   sortOrder: z.number().int().min(0).max(100000).optional(),
 });
+export const cleaningTasksSchema = z.object({ labels: z.array(z.string().trim().min(1).max(120)).max(80) });
+export const cleaningEntrySchema = z.object({
+  signedName: signedNameSchema,
+  taskIds: z.array(z.string().max(100)).min(1, "Zaznacz, co zostało zrobione").max(80),
+  notes: z.string().trim().max(2000).default(""),
+});
+export interface CleaningTask {
+  id: string;
+  label: string;
+}
+export interface CleaningRow {
+  id: string;
+  taskLabel: string;
+  notes: string;
+  doneAt: string;
+  authorName: string | null;
+}
+
+export const handoverAckSchema = z.object({ name: signedNameSchema });
 export const haccpEntrySchema = z.object({
+  signedName: signedNameSchema,
   readings: z
     .array(z.object({ unitId: z.string().max(100), tempC: z.number().min(-60).max(60), correctiveAction: z.string().trim().max(2000).default("") }))
     .max(100),
@@ -105,6 +130,8 @@ export interface StockResponse {
   sheetId: string | null;
   updatedAt: string | null;
   lines: StockLine[];
+  /** One-off lines typed at the bottom of the list. */
+  extras: { id: string; text: string }[];
 }
 
 export interface HandoverRow {
@@ -157,7 +184,7 @@ export interface KitchenSummary {
   shopping: { items: number; toBuy: number };
   wholesale: { items: number; toOrder: number };
   handover: { last: { shiftDate: string; shift: Shift; hasFailure: boolean; shortages: number; acknowledged: boolean } | null };
-  haccp: { units: number; measuredToday: number; pestCheckedToday: boolean; outOfRangeToday: number };
+  haccp: { units: number; measuredToday: number; pestCheckedToday: boolean; outOfRangeToday: number; cleaningTasks: number; cleanedToday: number };
 }
 
 /** Quantity to order on the wholesale sheet: manual override, else par − stock (never negative). */

@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { KitchenSummary } from "../../../shared/kitchen";
 import { apiFetch } from "../../lib/api";
+import { Field, Input } from "../../components/ui";
 import { Icon, TONE, type IconName } from "../layout/nav";
 
 export const kk = {
@@ -40,24 +41,58 @@ export const fmtDate = (ymd: string) => {
   return `${d}.${m}.${y}`;
 };
 
-/** Page heading with the coloured kitchen chip and a link back to the hub. */
+/** Compact page heading: back arrow, title, actions on one line. */
 export function KitchenHeader({ title, subtitle, icon, actions }: { title: string; subtitle?: string; icon: IconName; actions?: ReactNode }) {
   return (
-    <header className="mb-5 print:mb-2">
-      <Link to="/kuchnia" className="text-sm text-muted hover:text-fg print:hidden">
-        ← Kuchnia
-      </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <span className={`grid size-11 place-items-center rounded-xl ${TONE.kitchen} print:hidden`}>
-          <Icon name={icon} className="size-6" />
+    <header className="mb-3 print:mb-2">
+      <div className="flex items-center gap-2">
+        <Link to="/" aria-label="Wróć na start" className="-ml-2 grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg print:hidden">
+          <span aria-hidden="true" className="text-xl leading-none">←</span>
+        </Link>
+        <span className={`hidden size-8 shrink-0 place-items-center rounded-lg sm:grid ${TONE.kitchen} print:hidden`}>
+          <Icon name={icon} className="size-4" />
         </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
-        </div>
+        <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight">{title}</h1>
         {actions}
       </div>
+      {subtitle && <p className="mt-0.5 hidden text-sm text-muted sm:block">{subtitle}</p>}
     </header>
+  );
+}
+
+const NAME_KEY = "scl-signed-name";
+function readName(): string {
+  try {
+    return localStorage.getItem(NAME_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+function rememberName(v: string) {
+  try {
+    localStorage.setItem(NAME_KEY, v.trim());
+  } catch {
+    /* storage unavailable: the field just starts empty next time */
+  }
+}
+
+/** First name of the person filling in the record; remembered on this device. */
+export function useSignedName(): [string, (v: string) => void] {
+  const [name, setName] = useState(readName);
+  return [
+    name,
+    (v: string) => {
+      setName(v);
+      rememberName(v);
+    },
+  ];
+}
+
+export function NameField({ value, onChange, error, label = "Twoje imię" }: { value: string; onChange: (v: string) => void; error?: string | undefined; label?: string }) {
+  return (
+    <Field label={label} error={error}>
+      {(p) => <Input {...p} required autoComplete="given-name" maxLength={60} value={value} onChange={(e) => onChange(e.target.value)} className="sm:w-72" />}
+    </Field>
   );
 }
 

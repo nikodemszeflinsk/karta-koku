@@ -25,10 +25,15 @@ function statusFor(to: string, s: KitchenSummary | undefined): Status | null {
     }
     case "/kuchnia/haccp": {
       const h = s.haccp;
-      if (h.units === 0) return { text: "Dodaj lodówki i zamrażarki", tone: "muted" };
+      if (h.units === 0 && h.cleaningTasks === 0) return { text: "Dodaj plan sprzątania i lodówki", tone: "muted" };
       if (h.outOfRangeToday > 0) return { text: `Poza zakresem dziś: ${h.outOfRangeToday}`, tone: "warn" };
-      const done = h.measuredToday >= h.units && h.pestCheckedToday;
-      return { text: `Dziś: ${h.measuredToday}/${h.units} pomiarów${h.pestCheckedToday ? ", szkodniki ✓" : ""}`, tone: done ? "ok" : "warn" };
+      const parts = [
+        h.cleaningTasks ? `sprząt. ${h.cleanedToday}/${h.cleaningTasks}` : null,
+        h.units ? `temp. ${h.measuredToday}/${h.units}` : null,
+        `szkodniki ${h.pestCheckedToday ? "✓" : "—"}`,
+      ].filter(Boolean);
+      const done = h.cleanedToday >= h.cleaningTasks && h.measuredToday >= h.units && h.pestCheckedToday;
+      return { text: `Dziś: ${parts.join(" · ")}`, tone: done ? "ok" : "warn" };
     }
   }
   return null;

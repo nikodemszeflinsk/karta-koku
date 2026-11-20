@@ -6,7 +6,7 @@ import { Alert, Button, Card, EmptyState, Field, Input, Spinner } from "../../co
 import { apiFetch } from "../../lib/api";
 import { useMe } from "../../lib/queries";
 import { useApiMutation } from "../../lib/use-api-mutation";
-import { fmtDate, fmtDateTime, KitchenHeader, kk } from "./common";
+import { fmtDate, fmtDateTime, KitchenHeader, kk, NameField, useSignedName } from "./common";
 
 /*
  * Shift handover protocol:
@@ -59,7 +59,8 @@ function shortagesText(h: HandoverRow): string {
 
 export function HandoverCard({ h, highlight = false, title: titleOverride }: { h: HandoverRow; highlight?: boolean; title?: string }) {
   const me = useMe();
-  const ack = useApiMutation(() => ({ path: `/api/kitchen/handovers/${h.id}/ack`, body: {} }), [kk.handovers, kk.summary]);
+  const ack = useApiMutation((name: string) => ({ path: `/api/kitchen/handovers/${h.id}/ack`, body: { name } }), [kk.handovers, kk.summary]);
+  const [ackName, setAckName] = useSignedName();
   const todo = h.prep.filter((p) => !p.done);
   const shortages = shortagesText(h);
   const canAck = !h.acknowledgedAt && me.data && (me.data.guest || me.data.user.id !== h.authorId);
@@ -95,9 +96,27 @@ export function HandoverCard({ h, highlight = false, title: titleOverride }: { h
             ✓ Przejęte: {h.acknowledgedByName ?? "—"} · {fmtDateTime(h.acknowledgedAt)}
           </span>
         ) : canAck ? (
-          <Button className="ml-auto" loading={ack.isPending} onClick={() => void ack.submit(undefined)}>
-            Przejmuję zmianę
-          </Button>
+          <form
+            className="flex w-full flex-wrap items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void ack.submit(ackName);
+            }}
+          >
+            <input
+              aria-label="Imię osoby przejmującej zmianę"
+              required
+              maxLength={60}
+              autoComplete="given-name"
+              placeholder="Twoje imię"
+              value={ackName}
+              onChange={(e) => setAckName(e.target.value)}
+              className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-base text-fg placeholder:text-muted sm:max-w-56"
+            />
+            <Button type="submit" loading={ack.isPending}>
+              Przejmuję zmianę
+            </Button>
+          </form>
         ) : (
           <span className="font-semibold text-warn">Czeka na przejęcie</span>
         )}
@@ -158,6 +177,7 @@ function YesNoText(props: { name: string; yesLabel: string; on: boolean; setOn: 
 }
 
 function HandoverForm({ onSaved }: { onSaved: () => void }) {
+  const [signedName, setSignedName] = useSignedName();
   const [shiftDate, setShiftDate] = useState(warsawDate());
   const [items, setItems] = useState<string[]>([""]);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
@@ -179,6 +199,7 @@ function HandoverForm({ onSaved }: { onSaved: () => void }) {
       onSubmit={async (e) => {
         e.preventDefault();
         const r = await save.submit({
+          signedName,
           shiftDate,
           prep: items.map((l) => l.trim()).filter(Boolean).map((label) => ({ label, done: false })),
           prepNotes: "",
@@ -191,9 +212,12 @@ function HandoverForm({ onSaved }: { onSaved: () => void }) {
       }}
     >
       <Card title="Nowy protokół">
-        <Field label="Data" error={save.fieldErrors?.shiftDate}>
-          {(p) => <Input {...p} type="date" required value={shiftDate} onChange={(e) => setShiftDate(e.target.value)} className="sm:w-60" />}
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <NameField value={signedName} onChange={setSignedName} error={save.fieldErrors?.signedName} label="Przekazuje (imię)" />
+          <Field label="Data" error={save.fieldErrors?.shiftDate}>
+            {(p) => <Input {...p} type="date" required value={shiftDate} onChange={(e) => setShiftDate(e.target.value)} className="sm:w-60" />}
+          </Field>
+        </div>
       </Card>
 
       <Card title="1. Do uzupełnienia">

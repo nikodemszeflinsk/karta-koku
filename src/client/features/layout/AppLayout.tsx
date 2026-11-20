@@ -129,17 +129,6 @@ export function AppLayout() {
         )}
       </aside>
 
-      <header className="sticky top-0 z-30 flex h-14 print:hidden items-center justify-between border-b border-border bg-surface/90 px-4 backdrop-blur md:hidden">
-        <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
-          <img src="/favicon.svg" alt="" className="size-7" />
-          Sushi Chef Lab
-        </Link>
-        {EDUCATION_ENABLED && (
-          <Link to="/szukaj" aria-label="Szukaj" className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
-            <Icon name="search" />
-          </Link>
-        )}
-      </header>
 
       <main id="main" className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 pb-28 pt-5 sm:px-6 md:pb-10 md:pt-8 print:max-w-none print:p-0">
         <Outlet />

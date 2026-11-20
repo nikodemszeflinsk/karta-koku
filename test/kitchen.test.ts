@@ -122,13 +122,13 @@ describe("shift handover", () => {
     expect(checks.length).toBeGreaterThan(3);
     const bad = await api("/api/kitchen/handovers", {
       cookie: learner,
-      body: { shiftDate: "2026-11-20", shift: "morning", prep: [], shortages: [], hasFailure: true, failureNote: "" },
+      body: { signedName: "Ola", shiftDate: "2026-11-20", shift: "morning", prep: [], shortages: [], hasFailure: true, failureNote: "" },
     });
     expect(bad.status).toBe(400);
     const r = await api("/api/kitchen/handovers", {
       cookie: learner,
       body: {
-        shiftDate: "2026-11-20",
+        signedName: "Ola", shiftDate: "2026-11-20",
         shift: "morning",
         prep: checks.map((c, i) => ({ label: c.label, done: i > 0 })),
         prepNotes: "Brakuje pół partii ryżu",
@@ -142,9 +142,9 @@ describe("shift handover", () => {
   });
 
   it("is acknowledged by someone else, once", async () => {
-    expect((await api(`/api/kitchen/handovers/${id}/ack`, { cookie: learner, body: {} })).status).toBe(409);
-    expect((await api(`/api/kitchen/handovers/${id}/ack`, { cookie: owner, body: {} })).status).toBe(200);
-    expect((await api(`/api/kitchen/handovers/${id}/ack`, { cookie: owner, body: {} })).status).toBe(409);
+    expect((await api(`/api/kitchen/handovers/${id}/ack`, { cookie: learner, body: { name: "Kuba" } })).status).toBe(409);
+    expect((await api(`/api/kitchen/handovers/${id}/ack`, { cookie: owner, body: { name: "Kuba" } })).status).toBe(200);
+    expect((await api(`/api/kitchen/handovers/${id}/ack`, { cookie: owner, body: { name: "Kuba" } })).status).toBe(409);
     const sum = await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }));
     expect(sum.handover.last).toMatchObject({ acknowledged: true, shortages: 1, hasFailure: false });
   });
@@ -152,11 +152,11 @@ describe("shift handover", () => {
   it("accepts the simple form: no shift, items to replenish, shortages as text", async () => {
     const r = await api("/api/kitchen/handovers", {
       cookie: learner,
-      body: { shiftDate: "2026-11-21", prep: [{ label: "Ryż", done: false }, { label: "Nori", done: false }], shortages: [], shortagesNote: "Brak węgorza", hasFailure: false },
+      body: { signedName: "Ola", shiftDate: "2026-11-21", prep: [{ label: "Ryż", done: false }, { label: "Nori", done: false }], shortages: [], shortagesNote: "Brak węgorza", hasFailure: false },
     });
     expect(r.status).toBe(201);
     const { handovers } = await json<{ handovers: HandoverRow[] }>(api("/api/kitchen/handovers", { cookie: owner }));
-    expect(handovers[0]).toMatchObject({ shiftDate: "2026-11-21", shortagesNote: "Brak węgorza", failureNote: "Brak", prep: [{ label: "Ryż" }, { label: "Nori" }] });
+    expect(handovers[0]).toMatchObject({ authorName: "Ola", shiftDate: "2026-11-21", shortagesNote: "Brak węgorza", failureNote: "Brak", prep: [{ label: "Ryż" }, { label: "Nori" }] });
     expect(["morning", "evening"]).toContain(handovers[0]!.shift);
     const sum = await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }));
     expect(sum.handover.last).toMatchObject({ shortages: 1, acknowledged: false });
@@ -181,11 +181,12 @@ describe("HACCP", () => {
   });
 
   it("requires a corrective action for out-of-range readings", async () => {
-    const bad = await api("/api/kitchen/haccp/entries", { cookie: learner, body: { readings: [{ unitId: fridge, tempC: 7 }], pest: null } });
+    const bad = await api("/api/kitchen/haccp/entries", { cookie: learner, body: { signedName: "Ola", readings: [{ unitId: fridge, tempC: 7 }], pest: null } });
     expect(bad.status).toBe(400);
     const ok = await api("/api/kitchen/haccp/entries", {
       cookie: learner,
       body: {
+        signedName: "Ola",
         readings: [
           { unitId: fridge, tempC: 7, correctiveAction: "Przeniesiono rybę, wezwano serwis" },
           { unitId: freezer, tempC: -20 },
@@ -195,7 +196,7 @@ describe("HACCP", () => {
     });
     expect(ok.status).toBe(201);
     expect(await json(ok)).toEqual({ saved: 2, outOfRange: 1 });
-    expect((await api("/api/kitchen/haccp/entries", { cookie: learner, body: { readings: [], pest: { found: true } } })).status).toBe(400);
+    expect((await api("/api/kitchen/haccp/entries", { cookie: learner, body: { signedName: "Ola", readings: [], pest: { found: true } } })).status).toBe(400);
   });
 
   it("keeps the limits in force with each record, even after the unit changes", async () => {
@@ -206,7 +207,30 @@ describe("HACCP", () => {
     expect(log.pests).toHaveLength(1);
     expect(log.pests[0]!.found).toBe(false);
     const sum = await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }));
-    expect(sum.haccp).toEqual({ units: 2, measuredToday: 2, pestCheckedToday: true, outOfRangeToday: 1 });
+    expect(sum.haccp).toMatchObject({ units: 2, measuredToday: 2, pestCheckedToday: true, outOfRangeToday: 1 });
+  });
+
+  it("requires a name and shows it as the author", async () => {
+    expect((await api("/api/kitchen/haccp/entries", { cookie: learner, body: { signedName: " ", readings: [], pest: { found: false } } })).status).toBe(400);
+    const log = await json<{ temperatures: TemperatureRow[] }>(api("/api/kitchen/haccp/log", { cookie: owner }));
+    expect(log.temperatures.every((t) => t.authorName === "Ola")).toBe(true);
+  });
+
+  it("records cleaning against a plan managed by managers", async () => {
+    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: learner, body: { labels: ["Podłoga"] } })).status).toBe(403);
+    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: owner, body: { labels: ["Podłoga", "Deski", "Lodówki"] } })).status).toBe(200);
+    const { tasks } = await json<{ tasks: { id: string; label: string }[] }>(api("/api/kitchen/haccp/cleaning-tasks", { cookie: learner }));
+    expect(tasks.map((t) => t.label)).toEqual(["Podłoga", "Deski", "Lodówki"]);
+    expect((await api("/api/kitchen/haccp/cleaning", { cookie: learner, body: { signedName: "Ola", taskIds: [] } })).status).toBe(400);
+    const r = await api("/api/kitchen/haccp/cleaning", { cookie: learner, body: { signedName: "Ola", taskIds: [tasks[0]!.id, tasks[1]!.id], notes: "Po serwisie" } });
+    expect(await json(r)).toEqual({ saved: 2 });
+    // Renaming the plan keeps unchanged tasks and the history labels.
+    expect((await api("/api/kitchen/haccp/cleaning-tasks", { method: "PUT", cookie: owner, body: { labels: ["Podłoga", "Okap"] } })).status).toBe(200);
+    const log = await json<{ cleaning: { taskLabel: string; authorName: string; notes: string }[] }>(api("/api/kitchen/haccp/log", { cookie: owner }));
+    expect(log.cleaning.map((x) => x.taskLabel).sort()).toEqual(["Deski", "Podłoga"]);
+    expect(log.cleaning[0]).toMatchObject({ authorName: "Ola", notes: "Po serwisie" });
+    const sum = await json<KitchenSummary>(api("/api/kitchen/summary", { cookie: learner }));
+    expect(sum.haccp).toMatchObject({ cleaningTasks: 2, cleanedToday: 1 });
   });
 
   it("has no way to edit or delete records", async () => {

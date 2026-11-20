@@ -30,6 +30,26 @@ export function isStandalone(): boolean {
   return matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
+/** Browsers built into other apps (Messenger, Instagram, WhatsApp, Gmail…) usually cannot add to the home screen. */
+export function inAppBrowser(): string | null {
+  const ua = navigator.userAgent;
+  if (/FBAN|FBAV|FB_IAB|Messenger/i.test(ua)) return "Messenger/Facebook";
+  if (/Instagram/i.test(ua)) return "Instagram";
+  if (/WhatsApp/i.test(ua)) return "WhatsApp";
+  if (/Line\//.test(ua)) return "LINE";
+  if (/GSA\//.test(ua)) return "Google";
+  if (/; wv\)/.test(ua)) return "aplikacji";
+  return null;
+}
+
+/** iPhone browser other than Safari (Chrome/Firefox/Edge on iOS). */
+export function iosBrowser(): "safari" | "chrome" | "other" {
+  const ua = navigator.userAgent;
+  if (/CriOS/.test(ua)) return "chrome";
+  if (/FxiOS|EdgiOS|OPiOS/.test(ua)) return "other";
+  return "safari";
+}
+
 export type Platform = "ios" | "android" | "other";
 export function platform(): Platform {
   const ua = navigator.userAgent;

@@ -3,10 +3,13 @@ import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
+  cleaningEntrySchema,
+  cleaningTasksSchema,
   coldUnitInputSchema,
   coldUnitUpdateSchema,
   haccpEntrySchema,
   handoverChecksSchema,
+  handoverAckSchema,
   handoverInputSchema,
   isTextUnit,
   orderQty,
@@ -15,8 +18,11 @@ import {
   stockImportSchema,
   stockItemInputSchema,
   stockItemUpdateSchema,
+  stockExtraSchema,
   stockLineSchema,
   warsawDayStart,
+  type CleaningRow,
+  type CleaningTask,
   type ColdUnit,
   type HandoverRow,
   type KitchenSummary,
@@ -31,7 +37,7 @@ import {
 import { GUEST_USER_ID } from "../../../shared/roles";
 import { foldText } from "../../../shared/text";
 import type { Db } from "../../db/client";
-import { coldUnits, handoverChecks, pestChecks, shiftHandovers, stockItems, stockSheetLines, stockSheets, temperatureLogs, users } from "../../db/schema";
+import { cleaningLogs, cleaningTasks, coldUnits, handoverChecks, stockSheetExtras, pestChecks, shiftHandovers, stockItems, stockSheetLines, stockSheets, temperatureLogs, users } from "../../db/schema";
 import { writeAudit } from "../../lib/audit";
 import { HttpError } from "../../lib/errors";
 import { iso, notFound, validation } from "../../lib/knowledge";
@@ -96,8 +102,21 @@ async function computeSummaryLines(db: Db, list: StockList, sheetId: string): Pr
       return { line: l, out: { name: it.name, unit: it.unit, groupName: it.groupName, qtyHave: l?.qtyHave ?? null, parQty: it.parQty, qty: lineQty(list, it, l), note: l?.note ?? "" }, item: it };
     })
     .filter((x) => isPending(list, x.item, x.line))
-    .map((x) => x.out);
+    .map((x) => x.out)
+    .concat(
+      (await db.select().from(stockSheetExtras).where(eq(stockSheetExtras.sheetId, sheetId)).orderBy(asc(stockSheetExtras.createdAt))).map((x) => ({
+        name: x.text,
+        unit: "",
+        groupName: EXTRA_GROUP,
+        qtyHave: null,
+        parQty: null,
+        qty: 0,
+        note: "",
+      })),
+    );
 }
+
+const EXTRA_GROUP = "Dopisane";
 
 const stockRoutes = new Hono<AppEnv>()
   .get("/:list", zValidator("param", listParam, validationHook), async (c) => {
@@ -110,7 +129,33 @@ const stockRoutes = new Hono<AppEnv>()
           .select({ itemId: stockSheetLines.itemId, qtyHave: stockSheetLines.qtyHave, qtyOrder: stockSheetLines.qtyOrder, note: stockSheetLines.note })
           .from(stockSheetLines).where(eq(stockSheetLines.sheetId, sheet.id))
       : [];
-    return c.json({ list, items, sheetId: sheet?.id ?? null, updatedAt: sheet ? iso(sheet.updatedAt) : null, lines } satisfies StockResponse);
+    const extras = sheet
+      ? await db.select({ id: stockSheetExtras.id, text: stockSheetExtras.text }).from(stockSheetExtras).where(eq(stockSheetExtras.sheetId, sheet.id)).orderBy(asc(stockSheetExtras.createdAt))
+      : [];
+    return c.json({ list, items, sheetId: sheet?.id ?? null, updatedAt: sheet ? iso(sheet.updatedAt) : null, lines, extras } satisfies StockResponse);
+  })
+  .post("/:list/extras", zValidator("param", listParam, validationHook), zValidator("json", stockExtraSchema, validationHook), async (c) => {
+    const { list } = c.req.valid("param");
+    const db = c.var.db;
+    const sheet = await ensureOpenSheet(db, list, c.var.user!.id);
+    const id = crypto.randomUUID();
+    await db.batch([
+      db.insert(stockSheetExtras).values({ id, sheetId: sheet.id, text: c.req.valid("json").text }),
+      db.update(stockSheets).set({ updatedAt: new Date() }).where(eq(stockSheets.id, sheet.id)),
+    ]);
+    return c.json({ id }, 201);
+  })
+  .delete("/extras/:id", async (c) => {
+    const db = c.var.db;
+    // Only lines of a still-open list can be removed; closed lists are history.
+    const [row] = await db
+      .select({ id: stockSheetExtras.id })
+      .from(stockSheetExtras)
+      .innerJoin(stockSheets, and(eq(stockSheets.id, stockSheetExtras.sheetId), eq(stockSheets.status, "open")))
+      .where(eq(stockSheetExtras.id, c.req.param("id")));
+    if (!row) notFound("Nie znaleziono pozycji.");
+    await db.delete(stockSheetExtras).where(eq(stockSheetExtras.id, row.id));
+    return c.json({ ok: true });
   })
   .put("/:list/lines/:itemId", zValidator("param", listParam.extend({ itemId: z.string().max(100) }), validationHook), zValidator("json", stockLineSchema, validationHook), async (c) => {
     const { list, itemId } = c.req.valid("param");
@@ -232,14 +277,14 @@ async function loadHandovers(db: Db, limit: number): Promise<HandoverRow[]> {
     shiftDate: r.shiftDate,
     shift: r.shift,
     authorId: r.authorId,
-    authorName: r.authorId ? (names.get(r.authorId) ?? null) : null,
+    authorName: r.signedName || (r.authorId ? (names.get(r.authorId) ?? null) : null),
     prep: r.prep,
     prepNotes: r.prepNotes,
     shortages: r.shortages,
     shortagesNote: r.shortagesNote,
     hasFailure: r.hasFailure,
     failureNote: r.failureNote,
-    acknowledgedByName: r.acknowledgedBy ? (names.get(r.acknowledgedBy) ?? null) : null,
+    acknowledgedByName: r.acknowledgedName || (r.acknowledgedBy ? (names.get(r.acknowledgedBy) ?? null) : null),
     acknowledgedAt: r.acknowledgedAt ? iso(r.acknowledgedAt) : null,
     createdAt: iso(r.createdAt),
   }));
@@ -275,20 +320,59 @@ const handoverRoutes = new Hono<AppEnv>()
     });
     return c.json({ id }, 201);
   })
-  .post("/:id/ack", async (c) => {
+  .post("/:id/ack", zValidator("json", handoverAckSchema, validationHook), async (c) => {
+    const { name } = c.req.valid("json");
     const db = c.var.db;
     const userId = c.var.user!.id;
     const [h] = await db.select().from(shiftHandovers).where(eq(shiftHandovers.id, c.req.param("id")));
     if (!h) notFound("Nie znaleziono protokołu.");
     if (h.authorId === userId && userId !== GUEST_USER_ID) throw new HttpError(409, "own_handover", "Protokół potwierdza osoba przejmująca zmianę.");
     if (h.acknowledgedAt) throw new HttpError(409, "already_acknowledged", "Zmiana została już przejęta.");
-    await db.update(shiftHandovers).set({ acknowledgedBy: userId, acknowledgedAt: new Date() }).where(eq(shiftHandovers.id, h.id));
+    await db.update(shiftHandovers).set({ acknowledgedBy: userId, acknowledgedName: name, acknowledgedAt: new Date() }).where(eq(shiftHandovers.id, h.id));
     return c.json({ ok: true });
   });
 
 const rangeQuery = z.object({ from: z.iso.datetime().optional(), to: z.iso.datetime().optional() });
 
 const haccpRoutes = new Hono<AppEnv>()
+  // ---- cleaning ("sprzątanie i czyszczenie") ----
+  .get("/cleaning-tasks", async (c) => {
+    const tasks: CleaningTask[] = await c.var.db.select({ id: cleaningTasks.id, label: cleaningTasks.label }).from(cleaningTasks).orderBy(asc(cleaningTasks.sortOrder));
+    return c.json({ tasks });
+  })
+  .put("/cleaning-tasks", requireManager, zValidator("json", cleaningTasksSchema, validationHook), async (c) => {
+    const { labels } = c.req.valid("json");
+    const db = c.var.db;
+    // Keep ids of tasks whose label is unchanged; past records keep their copied label either way.
+    const old = await db.select().from(cleaningTasks);
+    const byLabel = new Map(old.map((t) => [t.label, t.id]));
+    const keep = new Set<string>();
+    const stmts = labels.map((label, i) => {
+      const id = byLabel.get(label);
+      if (id && !keep.has(id)) {
+        keep.add(id);
+        return db.update(cleaningTasks).set({ sortOrder: i + 1 }).where(eq(cleaningTasks.id, id));
+      }
+      return db.insert(cleaningTasks).values({ id: crypto.randomUUID(), label, sortOrder: i + 1 });
+    });
+    const drop = old.filter((t) => !keep.has(t.id)).map((t) => t.id);
+    await db.batch([...(drop.length ? [db.delete(cleaningTasks).where(inArray(cleaningTasks.id, drop))] : []), ...stmts] as [never, ...never[]]);
+    return c.json({ ok: true });
+  })
+  .post("/cleaning", zValidator("json", cleaningEntrySchema, validationHook), async (c) => {
+    const { taskIds, notes, signedName } = c.req.valid("json");
+    const db = c.var.db;
+    const ids = [...new Set(taskIds)];
+    const tasks = await db.select().from(cleaningTasks).where(inArray(cleaningTasks.id, ids));
+    if (tasks.length !== ids.length) validation("taskIds", "Nieznane zadanie — odśwież stronę");
+    const now = new Date();
+    await db.batch(
+      tasks.map((t) =>
+        db.insert(cleaningLogs).values({ id: crypto.randomUUID(), taskId: t.id, taskLabel: t.label, notes, signedName, authorId: c.var.user!.id, doneAt: now }),
+      ) as [never, ...never[]],
+    );
+    return c.json({ saved: tasks.length }, 201);
+  })
   .get("/units", async (c) => {
     const units: ColdUnit[] = await c.var.db
       .select({ id: coldUnits.id, name: coldUnits.name, kind: coldUnits.kind, minC: coldUnits.minC, maxC: coldUnits.maxC, sortOrder: coldUnits.sortOrder })
@@ -328,7 +412,7 @@ const haccpRoutes = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
   .post("/entries", zValidator("json", haccpEntrySchema, validationHook), async (c) => {
-    const { readings, pest } = c.req.valid("json");
+    const { readings, pest, signedName } = c.req.valid("json");
     if (readings.length === 0 && !pest) validation("readings", "Wpisz co najmniej jeden pomiar");
     const db = c.var.db;
     const userId = c.var.user!.id;
@@ -342,12 +426,12 @@ const haccpRoutes = new Hono<AppEnv>()
       if (!u) validation(`readings.${i}.unitId`, "Nieznane urządzenie");
       const inRange = r.tempC >= u.minC && r.tempC <= u.maxC;
       if (!inRange && !r.correctiveAction) validation(`readings.${i}.correctiveAction`, `${u.name}: temperatura poza zakresem — wpisz działanie korygujące`);
-      return { id: crypto.randomUUID(), unitId: u.id, tempC: r.tempC, minC: u.minC, maxC: u.maxC, inRange, correctiveAction: r.correctiveAction, authorId: userId, measuredAt: now };
+      return { id: crypto.randomUUID(), unitId: u.id, tempC: r.tempC, minC: u.minC, maxC: u.maxC, inRange, correctiveAction: r.correctiveAction, signedName, authorId: userId, measuredAt: now };
     });
     if (pest?.found && !pest.notes) validation("pest.notes", "Opisz, co i gdzie zauważono");
     await db.batch([
       ...rows.map((r) => db.insert(temperatureLogs).values(r)),
-      ...(pest ? [db.insert(pestChecks).values({ id: crypto.randomUUID(), found: pest.found, notes: pest.notes, action: pest.action, authorId: userId, checkedAt: now })] : []),
+      ...(pest ? [db.insert(pestChecks).values({ id: crypto.randomUUID(), found: pest.found, notes: pest.notes, action: pest.action, signedName, authorId: userId, checkedAt: now })] : []),
     ] as [never, ...never[]]);
     return c.json({ saved: rows.length, outOfRange: rows.filter((r) => !r.inRange).length }, 201);
   })
@@ -370,7 +454,20 @@ const haccpRoutes = new Hono<AppEnv>()
       .where(and(gte(pestChecks.checkedAt, from), lt(pestChecks.checkedAt, to)))
       .orderBy(desc(pestChecks.checkedAt))
       .limit(2000);
-    const names = await userNames(db, [...temps.map((r) => r.t.authorId), ...pests.map((p) => p.authorId)]);
+    const cleanings = await db
+      .select()
+      .from(cleaningLogs)
+      .where(and(gte(cleaningLogs.doneAt, from), lt(cleaningLogs.doneAt, to)))
+      .orderBy(desc(cleaningLogs.doneAt))
+      .limit(5000);
+    const names = await userNames(db, [...temps.map((r) => r.t.authorId), ...pests.map((p) => p.authorId), ...cleanings.map((x) => x.authorId)]);
+    const cleaning: CleaningRow[] = cleanings.map((x) => ({
+      id: x.id,
+      taskLabel: x.taskLabel,
+      notes: x.notes,
+      doneAt: iso(x.doneAt),
+      authorName: x.signedName || (x.authorId ? (names.get(x.authorId) ?? null) : null),
+    }));
     const temperatures: TemperatureRow[] = temps.map(({ t, unitName }) => ({
       id: t.id,
       unitId: t.unitId,
@@ -381,7 +478,7 @@ const haccpRoutes = new Hono<AppEnv>()
       inRange: t.inRange,
       correctiveAction: t.correctiveAction,
       measuredAt: iso(t.measuredAt),
-      authorName: t.authorId ? (names.get(t.authorId) ?? null) : null,
+      authorName: t.signedName || (t.authorId ? (names.get(t.authorId) ?? null) : null),
     }));
     const pestRows: PestRow[] = pests.map((p) => ({
       id: p.id,
@@ -389,9 +486,9 @@ const haccpRoutes = new Hono<AppEnv>()
       notes: p.notes,
       action: p.action,
       checkedAt: iso(p.checkedAt),
-      authorName: p.authorId ? (names.get(p.authorId) ?? null) : null,
+      authorName: p.signedName || (p.authorId ? (names.get(p.authorId) ?? null) : null),
     }));
-    return c.json({ from: from.toISOString(), to: to.toISOString(), temperatures, pests: pestRows });
+    return c.json({ from: from.toISOString(), to: to.toISOString(), temperatures, pests: pestRows, cleaning });
   });
 
 export const kitchenRoutes = new Hono<AppEnv>()
@@ -404,7 +501,8 @@ export const kitchenRoutes = new Hono<AppEnv>()
       const sheet = await openSheet(db, list);
       const lines = sheet ? await db.select().from(stockSheetLines).where(eq(stockSheetLines.sheetId, sheet.id)) : [];
       const byItem = new Map(lines.map((l) => [l.itemId, l]));
-      return { items: items.length, pending: items.filter((it) => isPending(list, it, byItem.get(it.id))).length };
+      const [extras] = sheet ? await db.select({ n: sql<number>`count(*)` }).from(stockSheetExtras).where(eq(stockSheetExtras.sheetId, sheet.id)) : [];
+      return { items: items.length, pending: items.filter((it) => isPending(list, it, byItem.get(it.id))).length + (extras?.n ?? 0) };
     };
     const [shopping, wholesale, [last], [units], measured, [pest]] = await Promise.all([
       stock("shopping"),
@@ -419,6 +517,14 @@ export const kitchenRoutes = new Hono<AppEnv>()
         .groupBy(temperatureLogs.unitId),
       db.select({ id: pestChecks.id }).from(pestChecks).where(gte(pestChecks.checkedAt, dayStart)).limit(1),
     ]);
+    const [[cTasks], cleanedRows] = await Promise.all([
+      db.select({ n: sql<number>`count(*)` }).from(cleaningTasks),
+      db
+        .selectDistinct({ taskId: cleaningLogs.taskId })
+        .from(cleaningLogs)
+        .innerJoin(cleaningTasks, eq(cleaningTasks.id, cleaningLogs.taskId))
+        .where(gte(cleaningLogs.doneAt, dayStart)),
+    ]);
     const summary: KitchenSummary = {
       shopping: { items: shopping.items, toBuy: shopping.pending },
       wholesale: { items: wholesale.items, toOrder: wholesale.pending },
@@ -432,6 +538,8 @@ export const kitchenRoutes = new Hono<AppEnv>()
         measuredToday: measured.length,
         pestCheckedToday: Boolean(pest),
         outOfRangeToday: measured.reduce((s, m) => s + (Number(m.bad) > 0 ? 1 : 0), 0),
+        cleaningTasks: cTasks?.n ?? 0,
+        cleanedToday: cleanedRows.length,
       },
     };
     return c.json(summary);

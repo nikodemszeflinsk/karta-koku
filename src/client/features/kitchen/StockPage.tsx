@@ -140,15 +140,16 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
   };
   const noteOf = (it: StockItem) => (list === "shopping" || isTextUnit(it.unit) ? (drafts[it.id]?.note.trim() ?? "") : "");
   const pending = (it: StockItem) => qtyOf(it) > 0 || noteOf(it) !== "";
+  const extraLines = data.extras.map((x) => ({ name: x.text, unit: "", groupName: "Dopisane", qty: 0, note: "" }));
   const pendingLines = data.items
     .filter(pending)
-    .map((it) => ({ name: it.name, unit: it.unit, groupName: it.groupName, qty: qtyOf(it), note: noteOf(it) }));
+    .map((it) => ({ name: it.name, unit: it.unit, groupName: it.groupName, qty: qtyOf(it), note: noteOf(it) }))
+    .concat(extraLines);
 
   const close = useApiMutation(() => ({ path: `/api/kitchen/stock/${list}/close`, body: {} }), [kk.stock(list), kk.stockHistory(list), kk.summary]);
 
-  if (data.items.length === 0) {
-    return (
-      <EmptyState title="Na tej liście nie ma jeszcze pozycji">
+  const emptyCatalog = data.items.length === 0 && (
+      <EmptyState title="Na tej liście nie ma jeszcze stałych pozycji">
         {canEdit ? (
           <>
             Dodaj produkty ręcznie albo wklej całą listę.{" "}
@@ -160,13 +161,14 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
           "Poproś kierownika o dodanie produktów."
         )}
       </EmptyState>
-    );
-  }
+  );
 
   const visible = onlyPending ? data.items.filter(pending) : data.items;
 
   return (
     <>
+      {emptyCatalog}
+      {data.items.length > 0 && (
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
         <label className="inline-flex min-h-11 items-center gap-2">
           <input type="checkbox" className="size-5 accent-[var(--color-accent)]" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} />
@@ -176,6 +178,7 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
           {saving > 0 ? "Zapisywanie…" : savedAt ? `Zapisano ${fmtDateTime(savedAt).split(", ")[1] ?? ""}` : "Zmiany zapisują się same"}
         </span>
       </div>
+      )}
       {saveError && (
         <div className="mb-3">
           <Alert tone="error">{saveError}</Alert>
@@ -253,7 +256,9 @@ function StockSheet({ list, data, canEdit, onManage }: { list: StockList; data: 
         </Card>
       )}
 
-      <div className="sticky bottom-16 z-20 mt-4 flex items-center gap-2 rounded-xl border border-border bg-surface/95 p-3 shadow-lg backdrop-blur md:bottom-4">
+      <ExtrasSection list={list} extras={data.extras} />
+
+      <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
         <p className="mr-auto min-w-0 text-sm leading-tight">
           <span className="font-bold">{pendingLines.length}</span> {list === "shopping" ? "do kupienia" : "do zamówienia"}
         </p>
@@ -569,3 +574,59 @@ function ManagedRow({ list, item }: { list: StockList; item: StockItem }) {
 
 export const ShoppingPage = () => <StockPage list="shopping" />;
 export const WholesalePage = () => <StockPage list="wholesale" />;
+
+/** One-off items typed at the bottom of the open list (not saved in the product catalog). */
+function ExtrasSection({ list, extras }: { list: StockList; extras: { id: string; text: string }[] }) {
+  const inv = [kk.stock(list), kk.summary];
+  const [text, setText] = useState("");
+  const add = useApiMutation((b: { text: string }) => ({ path: `/api/kitchen/stock/${list}/extras`, body: b }), inv);
+  const del = useApiMutation((id: string) => ({ path: `/api/kitchen/stock/extras/${id}`, method: "DELETE" }), inv);
+  const submit = async () => {
+    if (!text.trim()) return;
+    if (await add.submit({ text })) setText("");
+  };
+  return (
+    <section className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+      <h2 className="border-b border-border bg-surface-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted">Dopisz własną pozycję</h2>
+      {extras.length > 0 && (
+        <ul className="divide-y divide-border">
+          {extras.map((x) => (
+            <li key={x.id} className="flex items-center gap-2 px-4 py-2">
+              <span className="min-w-0 flex-1 break-words">{x.text}</span>
+              <button
+                type="button"
+                aria-label={`Usuń ${x.text}`}
+                className="grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-danger"
+                onClick={() => void del.submit(x.id)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex gap-2 p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        <input
+          aria-label="Własna pozycja"
+          value={text}
+          maxLength={200}
+          autoComplete="off"
+          enterKeyHint="done"
+          placeholder={list === "shopping" ? "np. folia spożywcza, 2 rolki" : "np. dodatkowo: wasabi 1 kg"}
+          onChange={(e) => setText(e.target.value)}
+          className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-base placeholder:text-muted"
+        />
+        <Button type="submit" variant="secondary" className="px-3" loading={add.isPending} disabled={!text.trim()}>
+          Dodaj
+        </Button>
+      </form>
+      {(add.error || del.error) && <p className="px-4 pb-3 text-sm text-danger">{add.fieldErrors?.text ?? (add.error ?? del.error)?.message}</p>}
+    </section>
+  );
+}
